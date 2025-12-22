@@ -1,0 +1,143 @@
+'use client'
+
+import { useSession } from 'next-auth/react'
+import { useRouter } from 'next/navigation'
+import { useEffect, useState } from 'react'
+import { Movie } from '@/types'
+import { supabase } from '@/lib/supabase'
+import { formatIDR } from '@/lib/currency'
+
+export default function MoviesPage() {
+  const { data: session, status } = useSession()
+  const router = useRouter()
+  const [movies, setMovies] = useState<Movie[]>([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    if (status === 'unauthenticated') {
+      router.push('/auth/signin')
+    }
+  }, [status, router])
+
+  useEffect(() => {
+    fetchMovies()
+  }, [])
+
+  const fetchMovies = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('movies')
+        .select('*')
+        .order('created_at', { ascending: false })
+
+      if (error) {
+        console.error('Error fetching movies:', error)
+        // Fallback to mock data if error
+        setMovies([
+          {
+            id: '1',
+            title: 'Sample Movie 1',
+            description: 'An exciting movie about adventure and discovery.',
+            thumbnail: 'https://via.placeholder.com/300x450',
+            video_url: '',
+            duration: 120,
+            price: 15000,
+            genre: ['Action', 'Adventure'],
+            release_date: '2024-01-01',
+            rating: 4.5,
+            created_at: new Date().toISOString()
+          }
+        ])
+      } else {
+        setMovies(data || [])
+      }
+    } catch (error) {
+      console.error('Error fetching movies:', error)
+      setMovies([])
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  if (status === 'loading' || loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-900">
+        <div className="w-16 h-16 border-4 border-blue-400 border-t-transparent rounded-full animate-spin"></div>
+      </div>
+    )
+  }
+
+  if (!session) {
+    return null
+  }
+
+  return (
+    <div className="min-h-screen bg-gray-900 text-white py-8">
+      <div className="container mx-auto px-4">
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold mb-2">Browse Movies</h1>
+          <p className="text-gray-400">Discover and purchase your favorite movies</p>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
+          {movies.map((movie) => (
+            <div key={movie.id} className="bg-gray-800 rounded-lg overflow-hidden border border-gray-700 hover:border-blue-500 transition-colors">
+              <a href={`/movies/${movie.id}`} className="block">
+                <div className="aspect-w-2 aspect-h-3 bg-gray-700">
+                  {movie.thumbnail ? (
+                    <img 
+                      src={movie.thumbnail} 
+                      alt={movie.title}
+                      className="w-full h-48 object-cover hover:opacity-90 transition-opacity cursor-pointer"
+                      onError={(e) => {
+                        e.currentTarget.src = 'https://via.placeholder.com/300x450/374151/6B7280?text=No+Poster'
+                      }}
+                    />
+                  ) : (
+                    <div className="w-full h-48 bg-gray-700 flex items-center justify-center text-gray-500">
+                      <span className="text-sm">No Poster</span>
+                    </div>
+                  )}
+                </div>
+              </a>
+              <div className="p-4">
+                <h3 className="font-semibold text-white mb-2 truncate">
+                  <a href={`/movies/${movie.id}`} className="hover:text-blue-400 transition-colors">
+                    {movie.title}
+                  </a>
+                </h3>
+                <p className="text-gray-400 text-sm mb-3 line-clamp-2">{movie.description}</p>
+                <div className="flex items-center justify-between mb-3">
+                  <span className="text-blue-400 font-bold">{formatIDR(movie.price)}</span>
+                  <div className="flex items-center">
+                    <span className="text-yellow-400 text-sm mr-1">★</span>
+                    <span className="text-sm text-gray-400">{movie.rating}</span>
+                  </div>
+                </div>
+                <div className="flex flex-wrap gap-1 mb-3">
+                  {movie.genre.map((g, index) => (
+                    <span key={index} className="text-xs bg-gray-700 px-2 py-1 rounded">
+                      {g}
+                    </span>
+                  ))}
+                </div>
+                <a 
+                  href={`/movies/${movie.id}`} 
+                  className="block w-full bg-blue-600 hover:bg-blue-700 py-2 px-4 rounded-md transition-colors text-sm text-center"
+                >
+                  View Details
+                </a>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {movies.length === 0 && (
+          <div className="text-center py-12">
+            <p className="text-gray-500">No movies available at the moment.</p>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
