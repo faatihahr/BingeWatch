@@ -72,7 +72,7 @@ export default function Header({ className = "" }: { className?: string }) {
                 </span>
                 <button
                   onClick={() => signOut()}
-                  className="flex items-center justify-center w-10 h-10 rounded-full bg-purple-600 hover:bg-purple-700 transition-colors"
+                  className="flex items-center justify-center w-10 h-10 rounded-full bg-purple-600 hover:bg-purple-700 transition-colors cursor-pointer"
                   aria-label="Sign out"
                 >
                   <FiLogOut className="w-5 h-5 text-white" />
@@ -81,7 +81,7 @@ export default function Header({ className = "" }: { className?: string }) {
             ) : (
               <button
                 onClick={() => signIn('google')}
-                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-md transition-colors"
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-md transition-colors cursor-pointer"
               >
                 Sign In
               </button>
@@ -153,7 +153,7 @@ export default function Header({ className = "" }: { className?: string }) {
                         signOut()
                         setIsMobileMenuOpen(false)
                       }}
-                      className="flex items-center justify-center w-full py-2 rounded-full bg-purple-600 hover:bg-purple-700 transition-colors"
+                      className="flex items-center justify-center w-full py-2 rounded-full bg-purple-600 hover:bg-purple-700 transition-colors cursor-pointer"
                       aria-label="Sign out"
                     >
                       <FiLogOut className="w-5 h-5 text-white mr-2" />
@@ -166,7 +166,7 @@ export default function Header({ className = "" }: { className?: string }) {
                       signIn('google')
                       setIsMobileMenuOpen(false)
                     }}
-                    className="w-full px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-md transition-colors"
+                    className="w-full px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-md transition-colors cursor-pointer"
                   >
                     Sign In
                   </button>

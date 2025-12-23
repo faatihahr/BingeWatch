@@ -101,7 +101,7 @@ export default function SetupAdmin() {
           <button
             onClick={setupAsAdmin}
             disabled={isSettingUp}
-            className="w-full py-3 bg-blue-600 hover:bg-blue-700 rounded-md font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full py-3 bg-blue-600 hover:bg-blue-700 rounded-md font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
           >
             {isSettingUp ? 'Setting up...' : 'Setup as Admin'}
           </button>

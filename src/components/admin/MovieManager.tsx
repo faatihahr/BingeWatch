@@ -160,13 +160,13 @@ export default function MovieManager() {
                   <button
                     onClick={() => syncMovieRating(movie.id)}
                     disabled={syncingMovie === movie.id}
-                    className="px-3 py-1 bg-purple-600 hover:bg-purple-700 rounded text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="px-3 py-1 bg-purple-600 hover:bg-purple-700 rounded text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
                   >
                     {syncingMovie === movie.id ? 'Syncing...' : 'Sync OMDB'}
                   </button>
                   <button
                     onClick={() => deleteMovie(movie.id)}
-                    className="px-3 py-1 bg-red-600 hover:bg-red-700 rounded text-sm transition-colors"
+                    className="px-3 py-1 bg-red-600 hover:bg-red-700 rounded text-sm transition-colors cursor-pointer"
                   >
                     Delete
                   </button>

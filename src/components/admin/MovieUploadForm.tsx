@@ -241,7 +241,7 @@ export default function MovieUploadForm() {
                 type="button"
                 onClick={fetchMovieRating}
                 disabled={isFetchingRating || !formData.title}
-                className="px-4 py-2 bg-purple-600 hover:bg-purple-700 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap text-sm"
+                className="px-4 py-2 bg-purple-600 hover:bg-purple-700 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap text-sm cursor-pointer"
               >
                 {isFetchingRating ? 'Fetching...' : 'Fetch OMDB Data'}
               </button>
@@ -365,7 +365,7 @@ export default function MovieUploadForm() {
             <button
               type="button"
               onClick={handleAddGenre}
-              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-md transition-colors"
+              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-md transition-colors cursor-pointer"
             >
               Add
             </button>
@@ -392,7 +392,7 @@ export default function MovieUploadForm() {
         <button
           type="submit"
           disabled={isSubmitting}
-          className="w-full py-3 bg-blue-600 hover:bg-blue-700 rounded-md font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          className="w-full py-3 bg-blue-600 hover:bg-blue-700 rounded-md font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
         >
           {isSubmitting ? 'Uploading...' : 'Upload Movie'}
         </button>

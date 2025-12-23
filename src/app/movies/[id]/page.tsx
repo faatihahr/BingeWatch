@@ -62,7 +62,6 @@ export default function MovieDetailPage() {
   const [omdbData, setOmdbData] = useState<OMDBDetailResponse | null>(null)
   const [comments, setComments] = useState<Comment[]>([])
   const [loading, setLoading] = useState(true)
-  const [purchasing, setPurchasing] = useState(false)
   const [isPurchased, setIsPurchased] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [newComment, setNewComment] = useState('')
@@ -162,30 +161,14 @@ export default function MovieDetailPage() {
     fetchMovieAndUser()
   }, [movieId])
 
-  const handlePurchase = async () => {
+  const handlePurchase = () => {
     if (!session?.user || !movie) {
       console.error('No session or movie data for purchase')
       return
     }
 
-    setPurchasing(true)
-    try {
-      const { error } = await supabase
-        .from('purchases')
-        .insert([{
-          user_id: session.user.id,
-          movie_id: movie.id,
-          amount: movie.price
-        }])
-
-      if (error) throw error
-      setIsPurchased(true)
-    } catch (err) {
-      console.error('Purchase error:', err)
-      setError('Failed to purchase movie')
-    } finally {
-      setPurchasing(false)
-    }
+    // Redirect to purchase confirmation page
+    router.push(`/purchase?movieId=${movie.id}`)
   }
 
   const handleWatchMovie = () => {
@@ -324,7 +307,7 @@ export default function MovieDetailPage() {
         {/* Back Button */}
         <button
           onClick={() => router.back()}
-          className="mb-6 px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-md transition-colors"
+          className="mb-6 px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-md transition-colors cursor-pointer"
         >
           ← Back to Movies
         </button>
@@ -385,7 +368,7 @@ export default function MovieDetailPage() {
                           <p className="text-gray-400 mb-3">Sign in to purchase this movie</p>
                           <a 
                             href="/auth/signin" 
-                            className="block w-full py-3 bg-green-600 hover:bg-green-700 rounded-md font-medium transition-colors text-center"
+                            className="block w-full py-3 bg-green-600 hover:bg-green-700 rounded-md font-medium transition-colors text-center cursor-pointer"
                           >
                             Sign In to Purchase
                           </a>
@@ -393,17 +376,16 @@ export default function MovieDetailPage() {
                       ) : (
                         <button
                           onClick={handlePurchase}
-                          disabled={purchasing}
-                          className="w-full py-3 bg-green-600 hover:bg-green-700 rounded-md font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                          className="w-full py-3 bg-green-600 hover:bg-green-700 rounded-md font-medium transition-colors cursor-pointer"
                         >
-                          {purchasing ? 'Processing...' : 'Purchase Movie'}
+                          Purchase Movie
                         </button>
                       )}
                     </div>
                   ) : (
                     <button
                       onClick={handleWatchMovie}
-                      className="w-full py-3 bg-blue-600 hover:bg-blue-700 rounded-md font-medium transition-colors"
+                      className="w-full py-3 bg-blue-600 hover:bg-blue-700 rounded-md font-medium transition-colors cursor-pointer"
                     >
                       Watch Full Movie
                     </button>
@@ -553,7 +535,7 @@ export default function MovieDetailPage() {
                   <button
                     type="submit"
                     disabled={submittingComment || !newComment.trim()}
-                    className="py-2 px-6 bg-blue-600 hover:bg-blue-700 rounded-md font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="py-2 px-6 bg-blue-600 hover:bg-blue-700 rounded-md font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
                   >
                     {submittingComment ? 'Posting...' : 'Post Review'}
                   </button>
@@ -563,7 +545,7 @@ export default function MovieDetailPage() {
                   <p className="text-gray-400 mb-3">Sign in to write a review</p>
                   <a 
                     href="/auth/signin" 
-                    className="inline-block px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-md transition-colors"
+                    className="inline-block px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-md transition-colors cursor-pointer"
                   >
                     Sign In
                   </a>
@@ -591,7 +573,7 @@ export default function MovieDetailPage() {
                         {session?.user?.id === comment.user_id && (
                           <button
                             onClick={() => handleDeleteComment(comment.id)}
-                            className="text-red-400 hover:text-red-300 text-sm"
+                            className="text-red-400 hover:text-red-300 text-sm cursor-pointer"
                           >
                             Delete
                           </button>

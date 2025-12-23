@@ -40,7 +40,7 @@ export default function FilterControls() {
       {hasActiveFilters && (
         <button
           onClick={clearFilters}
-          className="flex items-center justify-center w-10 h-10 rounded-full bg-purple-600 hover:bg-purple-700 transition-colors"
+          className="flex items-center justify-center w-10 h-10 rounded-full bg-purple-600 hover:bg-purple-700 transition-colors cursor-pointer"
           aria-label="Clear all filters"
         >
           <FiTrash2 className="w-4 h-4 text-white" />
