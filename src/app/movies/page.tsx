@@ -7,6 +7,7 @@ import { Movie } from '@/types'
 import { supabase } from '@/lib/supabase'
 import { formatIDR } from '@/lib/currency'
 import { useFilters } from '@/contexts/FilterContext'
+import TopMovies from '@/components/TopMovies'
 
 export default function MoviesPage() {
   const { data: session, status } = useSession()
@@ -91,11 +92,14 @@ export default function MoviesPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-900 text-white py-8">
-      <div className="container mx-auto px-4">
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold mb-2">Browse Movies</h1>
-          <p className="text-gray-400">Discover and purchase your favorite movies</p>
+    <div className="min-h-screen bg-gray-900 text-white">
+      {/* TOP Movies Section */}
+      <TopMovies />
+      
+      <div className="container mx-auto px-4 py-8">
+        <div className="mb-6 sm:mb-8">
+          <h1 className="text-2xl font-bold mb-2 sm:text-3xl">Browse Movies</h1>
+          <p className="text-gray-400 text-sm sm:text-base">Discover and purchase your favorite movies</p>
           {filteredMovies.length !== movies.length && (
             <p className="text-blue-400 text-sm mt-2">
               Showing {filteredMovies.length} of {movies.length} movies
@@ -103,7 +107,7 @@ export default function MoviesPage() {
           )}
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-5 gap-3 sm:gap-6">
           {filteredMovies.map((movie) => (
             <div key={movie.id} className="bg-gray-800 rounded-lg overflow-hidden border border-gray-700 hover:border-blue-500 transition-colors">
               <a href={`/movies/${movie.id}`} className="block">

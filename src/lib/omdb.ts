@@ -169,6 +169,50 @@ export class OMDBService {
     }
   }
 
+  async getTopMoviesOfYear(year: number = new Date().getFullYear(), limit: number = 10): Promise<OMDBMovie[]> {
+    try {
+      // Search for popular movies from the current year
+      const popularKeywords = ['marvel', 'dc', 'disney', 'pixar', 'warner', 'universal', 'paramount', 'sony']
+      const allMovies: OMDBMovie[] = []
+      
+      for (const keyword of popularKeywords) {
+        const response = await fetch(
+          `${this.baseUrl}?apikey=${this.apiKey}&s=${keyword}&y=${year}&type=movie`
+        )
+        
+        if (response.ok) {
+          const data = await response.json()
+          if (data.Response === 'True' && data.Search) {
+            allMovies.push(...data.Search)
+          }
+        }
+      }
+      
+      // Remove duplicates and filter movies with posters
+      const uniqueMovies = allMovies.filter((movie, index, self) => 
+        index === self.findIndex((m) => m.imdbID === movie.imdbID) &&
+        movie.Poster && movie.Poster !== 'N/A'
+      )
+      
+      // Get detailed ratings for each movie to sort by rating
+      const moviesWithRatings = await Promise.all(
+        uniqueMovies.map(async (movie) => {
+          const rating = await this.getMovieRating(movie.Title, movie.Year)
+          return { ...movie, rating }
+        })
+      )
+      
+      // Sort by rating (highest first) and return top results
+      return moviesWithRatings
+        .sort((a, b) => b.rating - a.rating)
+        .slice(0, limit)
+        .map(({ rating, ...movie }) => movie)
+    } catch (error) {
+      console.error('Error getting top movies of year:', error)
+      return []
+    }
+  }
+
   extractGenres(genreString: string): string[] {
     if (!genreString) return []
     
