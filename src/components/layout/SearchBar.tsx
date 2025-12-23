@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { Movie } from '@/types'
 import { supabase } from '@/lib/supabase'
+import { geminiSearch } from '@/lib/gemini'
 import Link from 'next/link'
 
 export default function SearchBar() {
@@ -10,6 +11,8 @@ export default function SearchBar() {
   const [suggestions, setSuggestions] = useState<Movie[]>([])
   const [isOpen, setIsOpen] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [useAISearch, setUseAISearch] = useState(false)
+  const [isAISearch, setIsAISearch] = useState(false)
   const searchRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -32,25 +35,35 @@ export default function SearchBar() {
 
     const searchMovies = async () => {
       setLoading(true)
+      setIsAISearch(useAISearch)
+      
       try {
-        const { data, error } = await supabase
-          .from('movies')
-          .select('*')
-          .ilike('title', `%${query}%`)
-          .limit(5)
-          .order('title')
-
-        if (error) {
-          console.error('Error searching movies:', error)
-          setSuggestions([])
+        if (useAISearch) {
+          // Use AI search
+          const result = await geminiSearch.searchMovies(query)
+          setSuggestions(result.movies)
         } else {
-          setSuggestions(data || [])
+          // Use regular search
+          const { data, error } = await supabase
+            .from('movies')
+            .select('*')
+            .ilike('title', `%${query}%`)
+            .limit(5)
+            .order('title')
+
+          if (error) {
+            console.error('Error searching movies:', error)
+            setSuggestions([])
+          } else {
+            setSuggestions(data || [])
+          }
         }
       } catch (error) {
         console.error('Error searching movies:', error)
         setSuggestions([])
       } finally {
         setLoading(false)
+        setIsAISearch(false)
       }
     }
 
@@ -62,6 +75,11 @@ export default function SearchBar() {
     const value = e.target.value
     setQuery(value)
     setIsOpen(value.trim() !== '')
+  }
+
+  const toggleAISearch = () => {
+    setUseAISearch(!useAISearch)
+    setSuggestions([])
   }
 
   const handleSuggestionClick = (movie: Movie) => {
@@ -77,8 +95,8 @@ export default function SearchBar() {
           value={query}
           onChange={handleInputChange}
           onFocus={() => setIsOpen(query.trim() !== '')}
-          placeholder="Search movies..."
-          className="w-full px-4 py-2 pl-10 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+          placeholder={useAISearch ? "Cari film dengan AI... (Indonesia/English)" : "Search movies..."}
+          className="w-full px-4 py-2 pl-10 pr-24 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
         />
         <svg
           className="absolute left-3 top-2.5 h-5 w-5 text-gray-400"
@@ -93,6 +111,16 @@ export default function SearchBar() {
             d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
           />
         </svg>
+        <button
+          onClick={toggleAISearch}
+          className={`absolute right-2 top-1.5 px-2 py-1 text-xs rounded transition-colors ${
+            useAISearch 
+              ? 'bg-blue-600 text-white hover:bg-blue-700' 
+              : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+          }`}
+        >
+          {useAISearch ? 'AI' : 'Normal'}
+        </button>
       </div>
 
       {isOpen && (
@@ -100,6 +128,9 @@ export default function SearchBar() {
           {loading ? (
             <div className="p-4 text-center text-gray-400">
               <div className="w-6 h-6 border-2 border-blue-400 border-t-transparent rounded-full animate-spin mx-auto"></div>
+              <p className="text-sm mt-2">
+                {isAISearch ? 'AI sedang mencari...' : 'Searching...'}
+              </p>
             </div>
           ) : suggestions.length > 0 ? (
             suggestions.map((movie) => (
@@ -144,7 +175,17 @@ export default function SearchBar() {
             ))
           ) : query.trim() !== '' ? (
             <div className="p-4 text-center text-gray-400">
-              <p>No movies found for "{query}"</p>
+              <p>
+                {isAISearch 
+                  ? `AI tidak menemukan film untuk "${query}"` 
+                  : `No movies found for "${query}"`
+                }
+              </p>
+              {useAISearch && (
+                <p className="text-xs mt-2 text-gray-500">
+                  Coba dengan deskripsi yang lebih spesifik
+                </p>
+              )}
             </div>
           ) : null}
         </div>
