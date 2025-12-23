@@ -2,17 +2,41 @@
 
 import Link from 'next/link'
 import { useSession, signIn, signOut } from 'next-auth/react'
+import { usePathname } from 'next/navigation'
+import { FiLogOut } from 'react-icons/fi'
+import SearchBar from './SearchBar'
+import FilterControls from './FilterControls'
 
-export default function Header() {
+export default function Header({ className = "" }: { className?: string }) {
   const { data: session, status } = useSession()
+  const pathname = usePathname()
+
+  const shouldShowSearchBar = () => {
+    if (!session) return false
+    if (session.user?.role === 'admin') return false
+    return pathname === '/movies' || pathname === '/dashboard'
+  }
+
+  const shouldShowFilters = () => {
+    if (!session) return false
+    if (session.user?.role === 'admin') return false
+    return pathname === '/movies'
+  }
 
   return (
-    <header className="bg-gray-900 text-white shadow-lg">
+    <header 
+      className={`header-component backdrop-blur-lg text-white shadow-lg shadow-blue-500/20 ${className}`}
+      style={{ backgroundColor: 'rgba(22, 23, 99, 0.3)' }}
+    >
       <div className="container mx-auto px-4 py-4">
         <div className="flex items-center justify-between">
-          <Link href="/" className="text-2xl font-bold text-blue-400">
-            BingeWatch
-          </Link>
+          <div className="flex items-center space-x-10">
+            <Link href="/" className="text-2xl font-bold text-blue-400">
+              <img src="/images/Binge.png" alt="BingeWatch" className="h-10 w-40" />
+            </Link>
+            {shouldShowSearchBar() && <SearchBar />}
+            {shouldShowFilters() && <FilterControls />}
+          </div>
           
           <nav className="hidden md:flex items-center space-x-6">
             {session?.user?.role === 'admin' ? (
@@ -40,9 +64,10 @@ export default function Header() {
                 </span>
                 <button
                   onClick={() => signOut()}
-                  className="px-4 py-2 bg-red-600 hover:bg-red-700 rounded-md transition-colors"
+                  className="flex items-center justify-center w-10 h-10 rounded-full bg-purple-600 hover:bg-purple-700 transition-colors"
+                  aria-label="Sign out"
                 >
-                  Sign Out
+                  <FiLogOut className="w-5 h-5 text-white" />
                 </button>
               </div>
             ) : (

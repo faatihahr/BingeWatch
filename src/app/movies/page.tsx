@@ -2,16 +2,18 @@
 
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import { Movie } from '@/types'
 import { supabase } from '@/lib/supabase'
 import { formatIDR } from '@/lib/currency'
+import { useFilters } from '@/contexts/FilterContext'
 
 export default function MoviesPage() {
   const { data: session, status } = useSession()
   const router = useRouter()
   const [movies, setMovies] = useState<Movie[]>([])
   const [loading, setLoading] = useState(true)
+  const { filters } = useFilters()
 
   useEffect(() => {
     if (status === 'unauthenticated') {
@@ -22,6 +24,23 @@ export default function MoviesPage() {
   useEffect(() => {
     fetchMovies()
   }, [])
+
+  const filteredMovies = useMemo(() => {
+    return movies.filter(movie => {
+      if (filters.genre && !movie.genre.includes(filters.genre)) {
+        return false
+      }
+      
+      if (filters.year) {
+        const movieYear = new Date(movie.release_date).getFullYear().toString()
+        if (movieYear !== filters.year) {
+          return false
+        }
+      }
+      
+      return true
+    })
+  }, [movies, filters])
 
   const fetchMovies = async () => {
     try {
@@ -77,10 +96,15 @@ export default function MoviesPage() {
         <div className="mb-8">
           <h1 className="text-3xl font-bold mb-2">Browse Movies</h1>
           <p className="text-gray-400">Discover and purchase your favorite movies</p>
+          {filteredMovies.length !== movies.length && (
+            <p className="text-blue-400 text-sm mt-2">
+              Showing {filteredMovies.length} of {movies.length} movies
+            </p>
+          )}
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
-          {movies.map((movie) => (
+          {filteredMovies.map((movie) => (
             <div key={movie.id} className="bg-gray-800 rounded-lg overflow-hidden border border-gray-700 hover:border-blue-500 transition-colors">
               <a href={`/movies/${movie.id}`} className="block">
                 <div className="aspect-w-2 aspect-h-3 bg-gray-700">
@@ -132,9 +156,19 @@ export default function MoviesPage() {
           ))}
         </div>
 
-        {movies.length === 0 && (
+        {filteredMovies.length === 0 && (
           <div className="text-center py-12">
-            <p className="text-gray-500">No movies available at the moment.</p>
+            <p className="text-gray-500">
+              {movies.length === 0 ? "No movies available at the moment." : "No movies match your filters."}
+            </p>
+            {movies.length > 0 && (filters.genre || filters.year) ? (
+              <button 
+                onClick={() => {/* Clear filters functionality will be handled by FilterControls */}}
+                className="mt-4 text-blue-400 hover:text-blue-300 text-sm"
+              >
+                Clear filters to see all movies
+              </button>
+            ) : null}
           </div>
         )}
       </div>

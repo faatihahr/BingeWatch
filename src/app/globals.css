@@ -1,21 +1,14 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --background: #000000;
+  --foreground: #ffffff;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    --background: #000000;
+    --foreground: #ffffff;
   }
 }
 
@@ -23,4 +16,66 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
+}
+
+/* Slider Animations */
+@keyframes slide-1 {
+  0%, 25% { transform: translateX(0); opacity: 1; }
+  30%, 100% { transform: translateX(-100%); opacity: 0; }
+}
+
+@keyframes slide-2 {
+  0%, 25% { transform: translateX(100%); opacity: 0; }
+  25%, 50% { transform: translateX(0); opacity: 1; }
+  55%, 100% { transform: translateX(-100%); opacity: 0; }
+}
+
+@keyframes slide-3 {
+  0%, 50% { transform: translateX(100%); opacity: 0; }
+  50%, 75% { transform: translateX(0); opacity: 1; }
+  80%, 100% { transform: translateX(-100%); opacity: 0; }
+}
+
+@keyframes slide-4 {
+  0%, 75% { transform: translateX(100%); opacity: 0; }
+  75%, 100% { transform: translateX(0); opacity: 1; }
+}
+
+.animate-slide-1 {
+  animation: slide-1 12s infinite;
+}
+
+.animate-slide-2 {
+  animation: slide-2 12s infinite;
+}
+
+.animate-slide-3 {
+  animation: slide-3 12s infinite;
+}
+
+.animate-slide-4 {
+  animation: slide-4 12s infinite;
+}
+
+/* Remove any background gaps */
+.bg-transparent {
+  background-color: transparent !important;
+  background: transparent !important;
+}
+
+header.header-component {
+  background-color: rgba(22, 23, 99, 0.3) !important;
+  background: rgba(22, 23, 99, 0.3) !important;
+}
+
+/* Try different selectors */
+header {
+  background-color: rgba(22, 23, 99, 0.3) !important;
+  background: rgba(22, 23, 99, 0.3) !important;
+}
+
+/* Most specific */
+body > div > header {
+  background-color: rgba(22, 23, 99, 0.3) !important;
+  background: rgba(22, 23, 99, 0.3) !important;
 }
