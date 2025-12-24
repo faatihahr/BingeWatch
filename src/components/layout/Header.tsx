@@ -3,8 +3,11 @@
 import Link from 'next/link'
 import { useSession, signIn, signOut } from 'next-auth/react'
 import { usePathname } from 'next/navigation'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { FiLogOut, FiMenu, FiX } from 'react-icons/fi'
+import { supabase } from '@/lib/supabase'
+import { createClient } from '@supabase/supabase-js'
+import { Membership } from '@/types'
 import SearchBar from './SearchBar'
 import FilterControls from './FilterControls'
 
@@ -12,6 +15,58 @@ export default function Header({ className = "" }: { className?: string }) {
   const { data: session, status } = useSession()
   const pathname = usePathname()
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
+  const [membership, setMembership] = useState<Membership | null>(null)
+
+  // Service role client to bypass RLS for membership lookup
+  const supabaseAdmin = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://nrsklnfxhvfuqixfvzol.supabase.co',
+    process.env.SUPABASE_SERVICE_ROLE_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5yc2tsbmZ4aHZmdXFpeGZ2em9sIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2NjM5NzEyOCwiZXhwIjoyMDgxOTczMTI4fQ.y6zcM47UFxhguzBo2EHorHckeWgOrLHnyT4sYllZFaQ',
+    {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false
+      }
+    }
+  )
+
+  // Fetch user membership data
+  useEffect(() => {
+    const fetchMembership = async () => {
+      if (session?.user) {
+        console.log('Header: Fetching membership for user:', session.user.id, session.user.email)
+        try {
+          // First try to get user by email using service client
+          const { data: existingUser, error: userError } = await supabaseAdmin
+            .from('users')
+            .select('id, name, email')
+            .eq('email', session.user.email)
+            .single()
+
+          console.log('Header: User lookup result:', { existingUser, userError })
+
+          if (existingUser) {
+            // Now get membership using the correct user ID
+            const { data: membershipData, error: membershipError } = await supabaseAdmin
+              .from('memberships')
+              .select(`
+                *,
+                membership_type:membership_types(*)
+              `)
+              .eq('user_id', existingUser.id)
+              .eq('is_active', true)
+              .maybeSingle()
+
+            console.log('Header: Membership query result:', { membershipData, membershipError })
+            setMembership(membershipData)
+          }
+        } catch (error) {
+          console.error('Header: Error fetching membership:', error)
+        }
+      }
+    }
+
+    fetchMembership()
+  }, [session])
 
   const shouldShowSearchBar = () => {
     if (!session) return false
@@ -64,14 +119,34 @@ export default function Header({ className = "" }: { className?: string }) {
               <div className="w-8 h-8 border-2 border-blue-400 border-t-transparent rounded-full animate-spin"></div>
             ) : session ? (
               <div className="flex items-center space-x-4">
-                <span className="text-sm">
+                <Link 
+                  href={session.user?.role === 'admin' ? '/admin' : '/dashboard'}
+                  className="text-sm hover:text-blue-400 transition-colors cursor-pointer"
+                >
                   {session.user?.name}
-                  <span className="ml-2 px-2 py-1 bg-blue-600 text-xs rounded-full capitalize">
-                    {session.user?.role}
+                  <span className={`ml-2 px-2 py-1 text-xs rounded-full capitalize ${
+                    session.user?.role === 'admin' 
+                      ? 'bg-red-600 text-white' 
+                      : membership?.membership_type?.name === 'Akut'
+                      ? 'bg-purple-600 text-white'
+                      : membership?.membership_type?.name === 'Gabut'
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-gray-600 text-white'
+                  }`}>
+                    {session.user?.role === 'admin' 
+                      ? 'Admin' 
+                      : membership?.membership_type?.name || 'User'
+                    }
                   </span>
-                </span>
+                  {/* Debug info - remove in production */}
+                  {process.env.NODE_ENV === 'development' && (
+                    <span className="ml-2 text-xs text-gray-500">
+                      ({membership?.membership_type?.name || 'No membership'})
+                    </span>
+                  )}
+                </Link>
                 <button
-                  onClick={() => signOut()}
+                  onClick={() => signOut({ callbackUrl: '/auth/signin' })}
                   className="flex items-center justify-center w-10 h-10 rounded-full bg-purple-600 hover:bg-purple-700 transition-colors cursor-pointer"
                   aria-label="Sign out"
                 >
@@ -141,16 +216,31 @@ export default function Header({ className = "" }: { className?: string }) {
                 ) : session ? (
                   <div className="space-y-3">
                     <div className="flex items-center justify-between">
-                      <span className="text-sm">
+                      <Link 
+                        href={session.user?.role === 'admin' ? '/admin' : '/dashboard'}
+                        className="text-sm hover:text-blue-400 transition-colors cursor-pointer"
+                        onClick={() => setIsMobileMenuOpen(false)}
+                      >
                         {session.user?.name}
-                        <span className="ml-2 px-2 py-1 bg-blue-600 text-xs rounded-full capitalize">
-                          {session.user?.role}
+                        <span className={`ml-2 px-2 py-1 text-xs rounded-full capitalize ${
+                          session.user?.role === 'admin' 
+                            ? 'bg-red-600 text-white' 
+                            : membership?.membership_type?.name === 'Akut'
+                            ? 'bg-purple-600 text-white'
+                            : membership?.membership_type?.name === 'Gabut'
+                            ? 'bg-blue-600 text-white'
+                            : 'bg-gray-600 text-white'
+                        }`}>
+                          {session.user?.role === 'admin' 
+                            ? 'Admin' 
+                            : membership?.membership_type?.name || 'User'
+                          }
                         </span>
-                      </span>
+                      </Link>
                     </div>
                     <button
                       onClick={() => {
-                        signOut()
+                        signOut({ callbackUrl: '/auth/signin' })
                         setIsMobileMenuOpen(false)
                       }}
                       className="flex items-center justify-center w-full py-2 rounded-full bg-purple-600 hover:bg-purple-700 transition-colors cursor-pointer"

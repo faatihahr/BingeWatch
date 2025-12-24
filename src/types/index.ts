@@ -12,6 +12,7 @@ export interface Movie {
   description: string
   thumbnail: string
   video_url: string
+  trailer_url?: string
   duration: number
   price: number
   genre: string[]
@@ -26,5 +27,29 @@ export interface Purchase {
   movie_id: string
   amount: number
   created_at: string
+  expires_at?: string
+  is_expired: boolean
   movie?: Movie
+}
+
+export interface MembershipType {
+  id: string
+  name: string
+  description: string
+  price: number
+  duration_days: number
+  movie_access_days?: number
+  can_purchase_movies: boolean
+  created_at: string
+}
+
+export interface Membership {
+  id: string
+  user_id: string
+  membership_type_id: string
+  start_date: string
+  end_date: string
+  is_active: boolean
+  created_at: string
+  membership_type?: MembershipType
 }

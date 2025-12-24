@@ -1,8 +1,10 @@
 import { NextAuthOptions } from 'next-auth'
 import GoogleProvider from 'next-auth/providers/google'
+import CredentialsProvider from 'next-auth/providers/credentials'
 import { createClient } from '@supabase/supabase-js'
 import { DefaultSession } from 'next-auth'
 import { getUserUUID } from './uuidConverter'
+import bcrypt from 'bcryptjs'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -29,6 +31,48 @@ export const authOptions: NextAuthOptions = {
       clientId: process.env.GOOGLE_CLIENT_ID!,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
     }),
+    CredentialsProvider({
+      name: 'credentials',
+      credentials: {
+        email: { label: 'Email', type: 'email' },
+        password: { label: 'Password', type: 'password' }
+      },
+      async authorize(credentials) {
+        if (!credentials?.email || !credentials?.password) {
+          return null
+        }
+
+        try {
+          // Find user by email
+          const { data: user } = await supabase
+            .from('users')
+            .select('*')
+            .eq('email', credentials.email)
+            .single()
+
+          if (!user || !user.password) {
+            return null
+          }
+
+          // Verify password
+          const isPasswordValid = await bcrypt.compare(credentials.password, user.password)
+
+          if (!isPasswordValid) {
+            return null
+          }
+
+          return {
+            id: user.id,
+            email: user.email,
+            name: user.name,
+            role: user.role,
+          }
+        } catch (error) {
+          console.error('Credentials auth error:', error)
+          return null
+        }
+      }
+    }),
   ],
   session: {
     strategy: 'jwt',
@@ -36,10 +80,11 @@ export const authOptions: NextAuthOptions = {
   callbacks: {
     async jwt({ token, user }) {
       if (user) {
-        // Convert Google ID to UUID for database compatibility
-        const uuid = getUserUUID(user.id)
-        token.id = uuid
-        token.role = 'user' // Default role, will be updated from database
+        // For credentials auth, use the user ID directly
+        // For Google auth, convert to UUID
+        const userId = user.id.includes('google') ? getUserUUID(user.id) : user.id
+        token.id = userId
+        token.role = user.role || 'user'
       }
       
       // On every session refresh, fetch role from database
@@ -79,5 +124,6 @@ export const authOptions: NextAuthOptions = {
   },
   pages: {
     signIn: '/auth/signin',
+    signOut: '/auth/signin',
   },
 }

@@ -1,29 +1,14 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useParams, useRouter } from 'next/navigation'
 import { useSession } from 'next-auth/react'
+import { useRouter, useParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { createClient } from '@supabase/supabase-js'
-import { omdbService } from '@/lib/omdb'
+import { Movie, Membership } from '@/types'
 import { formatIDR } from '@/lib/currency'
-
-interface Movie {
-  id: string
-  title: string
-  description: string
-  thumbnail: string
-  video_url: string
-  trailer_url?: string
-  duration: number
-  price: number
-  genre: string[]
-  release_date: string
-  rating: number
-  created_by?: string
-  created_at: string
-  updated_at: string
-}
+import { FiPlay, FiCalendar, FiClock, FiStar, FiThumbsUp, FiMessageCircle, FiShare2, FiChevronLeft } from 'react-icons/fi'
+import { omdbService } from '@/lib/omdb'
 
 interface Comment {
   id: string
@@ -63,6 +48,7 @@ export default function MovieDetailPage() {
   const [comments, setComments] = useState<Comment[]>([])
   const [loading, setLoading] = useState(true)
   const [isPurchased, setIsPurchased] = useState(false)
+  const [membership, setMembership] = useState<Membership | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [newComment, setNewComment] = useState('')
   const [newRating, setNewRating] = useState(5)
@@ -80,7 +66,14 @@ export default function MovieDetailPage() {
     }
   )
 
+  console.log('Supabase Admin URL:', process.env.NEXT_PUBLIC_SUPABASE_URL)
+  console.log('Service Key available:', !!process.env.SUPABASE_SERVICE_ROLE_KEY)
+
   useEffect(() => {
+    console.log('Movie Page: useEffect triggered with movieId:', movieId)
+    console.log('Movie Page: Session available:', !!session)
+    console.log('Movie Page: Session user:', session?.user?.email)
+    
     const fetchMovieAndUser = async () => {
       try {
         console.log('Using NextAuth session:', !!session)
@@ -116,17 +109,69 @@ export default function MovieDetailPage() {
 
         setMovie(movieData)
 
-        // Check if user has purchased this movie
+        // Check if user has purchased this movie and get membership info
         if (session?.user) {
-          console.log('Checking purchase for user:', session.user.email)
-          const { data: purchaseData } = await supabase
-            .from('purchases')
-            .select('*')
-            .eq('user_id', session.user.id)
-            .eq('movie_id', movieId)
-            .single()
+          console.log('Movie Page: Checking purchase for user:', session.user.email, 'User ID:', session.user.id)
+          
+          try {
+            // First try to get user by email using service client
+            console.log('Movie Page: Attempting user lookup with service client...')
+            const { data: existingUser, error: userError } = await supabaseAdmin
+              .from('users')
+              .select('id, name, email')
+              .eq('email', session.user.email)
+              .single()
 
-          setIsPurchased(!!purchaseData)
+            console.log('Movie Page: User lookup result:', { 
+            existingUser, 
+            userError,
+            userEmail: session.user.email,
+            userId: session.user.id
+          })
+
+            if (userError) {
+              console.error('Movie Page: User lookup error:', userError)
+            }
+
+            if (existingUser) {
+              console.log('Movie Page: User found, fetching membership...')
+              // Now get membership using the correct user ID
+              const { data: membershipData, error: membershipError } = await supabaseAdmin
+                .from('memberships')
+                .select(`
+                  *,
+                  membership_type:membership_types(*)
+                `)
+                .eq('user_id', existingUser.id)
+                .eq('is_active', true)
+                .maybeSingle()
+
+              console.log('Movie Page: Membership query result:', { membershipData, membershipError })
+              
+              if (membershipError) {
+                console.error('Movie Page: Membership query error:', membershipError)
+              }
+              
+              setMembership(membershipData)
+              
+              // Check purchase with correct user ID
+              console.log('Movie Page: Checking purchases...')
+              const { data: purchaseData, error: purchaseError } = await supabaseAdmin
+                .from('purchases')
+                .select('*')
+                .eq('user_id', existingUser.id)
+                .eq('movie_id', movieId)
+                .eq('is_expired', false)
+                .maybeSingle()
+
+              console.log('Movie Page: Purchase query result:', { purchaseData, purchaseError })
+              setIsPurchased(!!purchaseData)
+            } else {
+              console.error('Movie Page: User not found in database!')
+            }
+          } catch (error) {
+            console.error('Movie Page: Error in user/membership lookup:', error)
+          }
         }
 
         // Fetch comments for this movie
@@ -159,7 +204,7 @@ export default function MovieDetailPage() {
     }
 
     fetchMovieAndUser()
-  }, [movieId])
+  }, [movieId, session])
 
   const handlePurchase = () => {
     if (!session?.user || !movie) {
@@ -172,9 +217,32 @@ export default function MovieDetailPage() {
   }
 
   const handleWatchMovie = () => {
-    if (movie && isPurchased) {
+    if (movie && (isPurchased || membership?.membership_type?.name === 'Akut')) {
       window.open(movie.video_url, '_blank')
     }
+  }
+
+  const canWatchMovie = () => {
+    return isPurchased || membership?.membership_type?.name === 'Akut'
+  }
+
+  const canPurchaseMovie = () => {
+    // If no membership data, assume user can purchase (default behavior)
+    if (!membership) return true
+    
+    // Gabut members can purchase movies
+    if (membership.membership_type?.name === 'Gabut') return true
+    
+    // Check the can_purchase_movies flag
+    return membership.membership_type?.can_purchase_movies === true
+  }
+
+  const getActionButtonText = () => {
+    if (!session) return 'Sign In to Watch'
+    if (membership?.membership_type?.name === 'Akut') return 'Watch Now'
+    if (isPurchased) return 'Watch Full Movie'
+    if (canPurchaseMovie()) return 'Purchase Movie'
+    return 'Upgrade to Watch'
   }
 
   const handleSubmitComment = async (e: React.FormEvent) => {
@@ -361,34 +429,73 @@ export default function MovieDetailPage() {
 
                 {/* Action Buttons */}
                 <div className="space-y-3">
-                  {!isPurchased ? (
-                    <div className="space-y-3">
-                      {!session ? (
-                        <div className="text-center">
-                          <p className="text-gray-400 mb-3">Sign in to purchase this movie</p>
-                          <a 
-                            href="/auth/signin" 
-                            className="block w-full py-3 bg-green-600 hover:bg-green-700 rounded-md font-medium transition-colors text-center cursor-pointer"
-                          >
-                            Sign In to Purchase
-                          </a>
-                        </div>
-                      ) : (
-                        <button
-                          onClick={handlePurchase}
-                          className="w-full py-3 bg-green-600 hover:bg-green-700 rounded-md font-medium transition-colors cursor-pointer"
-                        >
-                          Purchase Movie
-                        </button>
-                      )}
+                  {!session ? (
+                    <div className="text-center">
+                      <p className="text-gray-400 mb-3">Sign in to access this movie</p>
+                      <a 
+                        href="/auth/signin" 
+                        className="block w-full py-3 bg-green-600 hover:bg-green-700 rounded-md font-medium transition-colors text-center cursor-pointer"
+                      >
+                        Sign In to Watch
+                      </a>
                     </div>
-                  ) : (
+                  ) : canWatchMovie() ? (
                     <button
                       onClick={handleWatchMovie}
                       className="w-full py-3 bg-blue-600 hover:bg-blue-700 rounded-md font-medium transition-colors cursor-pointer"
                     >
-                      Watch Full Movie
+                      {membership?.membership_type?.name === 'Akut' ? 'Watch Now' : 'Watch Full Movie'}
                     </button>
+                  ) : (
+                    <button
+                      onClick={handlePurchase}
+                      className="w-full py-3 bg-green-600 hover:bg-green-700 rounded-md font-medium transition-colors cursor-pointer"
+                    >
+                      Purchase Movie - {formatIDR(movie.price)}
+                    </button>
+                  )}
+
+                  {/* Membership Status */}
+                  {membership && (
+                    <div className="mt-4 p-3 bg-gray-700 rounded-lg">
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="text-gray-400">
+                          Membership: {membership.membership_type?.name}
+                        </span>
+                        <span className={`px-2 py-1 rounded-full text-xs ${
+                          membership.membership_type?.name === 'Akut' 
+                            ? 'bg-purple-600 text-white' 
+                            : 'bg-blue-600 text-white'
+                        }`}>
+                          {membership.membership_type?.name}
+                        </span>
+                      </div>
+                      {membership.membership_type?.name === 'Gabut' && (
+                        <p className="text-xs text-gray-400 mt-2">
+                          Movies expire after 7 days from purchase
+                        </p>
+                      )}
+                      {membership.membership_type?.name === 'Akut' && (
+                        <p className="text-xs text-gray-400 mt-2">
+                          Unlimited access until {new Date(membership.end_date).toLocaleDateString()}
+                        </p>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Debug info - remove in production */}
+                  {process.env.NODE_ENV === 'development' && (
+                    <div className="mt-4 p-3 bg-gray-700 rounded-lg text-xs">
+                      <p className="text-gray-400">Debug Info:</p>
+                      <p>User ID: {session?.user?.id || 'Not available'}</p>
+                      <p>Membership: {membership?.membership_type?.name || 'Not loaded'}</p>
+                      <p>Can Purchase: {canPurchaseMovie() ? 'Yes' : 'No'}</p>
+                      <p>Can Watch: {canWatchMovie() ? 'Yes' : 'No'}</p>
+                      <p>Is Purchased: {isPurchased ? 'Yes' : 'No'}</p>
+                      {membership && (
+                        <p>Membership ID: {membership.id}</p>
+                      )}
+                    </div>
                   )}
                 </div>
               </div>

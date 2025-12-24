@@ -2,13 +2,16 @@
 
 import { useAuth } from '@/hooks/useAuth'
 import { useState, useEffect } from 'react'
-import { Movie, Purchase } from '@/types'
+import { Movie, Purchase, Membership } from '@/types'
+import MembershipOffer from '@/components/MembershipOffer'
 
 export default function Dashboard() {
   const { user, isLoading, isAuthenticated } = useAuth('user')
   const [purchasedMovies, setPurchasedMovies] = useState<Purchase[]>([])
   const [watchHistory, setWatchHistory] = useState<Movie[]>([])
   const [favorites, setFavorites] = useState<Movie[]>([])
+  const [membership, setMembership] = useState<Membership | null>(null)
+  const [showMembershipOffer, setShowMembershipOffer] = useState(false)
 
   useEffect(() => {
     if (isAuthenticated && user) {
@@ -20,6 +23,12 @@ export default function Dashboard() {
       setPurchasedMovies(mockPurchases)
       setWatchHistory(mockWatchHistory)
       setFavorites(mockFavorites)
+      
+      // Check if user has membership and show offer if not
+      // For now, show membership offer to all non-admin users
+      if (user.role !== 'admin') {
+        setShowMembershipOffer(true)
+      }
     }
   }, [isAuthenticated, user])
 
@@ -152,6 +161,19 @@ export default function Dashboard() {
             </div>
           </div>
         </div>
+
+        {/* Membership Offer Section */}
+        {showMembershipOffer && user.role !== 'admin' && (
+          <div className="mt-8">
+            <MembershipOffer 
+              onUpgrade={(membershipType) => {
+                // Handle membership upgrade logic here
+                console.log('Upgrading to:', membershipType.name)
+                // You would typically call an API here to process the payment
+              }}
+            />
+          </div>
+        )}
       </div>
     </div>
   )
