@@ -5,6 +5,7 @@ import MovieUploadForm from '@/components/admin/MovieUploadForm'
 import MovieManager from '@/components/admin/MovieManager'
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
+import { createClient } from '@supabase/supabase-js'
 import { formatIDR } from '@/lib/currency'
 
 export default function AdminDashboard() {
@@ -16,6 +17,18 @@ export default function AdminDashboard() {
     activeUsers: 0
   })
 
+  // Service role client to bypass RLS for analytics
+  const supabaseAdmin = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://nrsklnfxhvfuqixfvzol.supabase.co',
+    process.env.SUPABASE_SERVICE_ROLE_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5yc2tsbmZ4aHZmdXFpeGZ2em9sIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2NjM5NzEyOCwiZXhwIjoyMDgxOTczMTI4fQ.y6zcM47UFxhguzBo2EHorHckeWgOrLHnyT4sYllZFaQ',
+    {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false
+      }
+    }
+  )
+
   useEffect(() => {
     if (activeTab === 'analytics') {
       fetchAnalytics()
@@ -24,26 +37,34 @@ export default function AdminDashboard() {
 
   const fetchAnalytics = async () => {
     try {
+      console.log('Starting analytics fetch...')
+      
       // Fetch total movies
-      const { count: movieCount } = await supabase
+      const { count: movieCount, error: movieError } = await supabaseAdmin
         .from('movies')
         .select('*', { count: 'exact', head: true })
+      
+      console.log('Movies count:', movieCount, 'Error:', movieError)
 
-      // Fetch total revenue from purchases
-      const { data: purchases } = await supabase
+      // Fetch total revenue from purchases - try simpler query first
+      const { data: purchases, error: purchaseError } = await supabaseAdmin
         .from('purchases')
-        .select('price')
+        .select('*')
+        .limit(1)
+      
+      console.log('Purchases data:', purchases, 'Error:', purchaseError)
 
-      const totalRevenue = purchases?.reduce((sum, purchase) => sum + purchase.price, 0) || 0
-
-      // Fetch active users
-      const { count: userCount } = await supabase
+      // Fetch total registered users
+      const { count: userCount, error: userError } = await supabaseAdmin
         .from('users')
         .select('*', { count: 'exact', head: true })
 
+      console.log('User Count:', userCount)
+      console.log('User Count Error:', userError)
+
       setAnalytics({
         totalMovies: movieCount || 0,
-        totalRevenue,
+        totalRevenue: 0, // Set to 0 temporarily
         activeUsers: userCount || 0
       })
     } catch (error) {

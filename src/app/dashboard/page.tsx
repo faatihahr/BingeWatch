@@ -9,7 +9,7 @@ import { supabase } from '@/lib/supabase'
 import { createClient } from '@supabase/supabase-js'
 
 export default function Dashboard() {
-  const { user, isLoading, isAuthenticated } = useAuth('user')
+  const { user, isLoading, isAuthenticated } = useAuth()
   const { data: session } = useSession()
   const [purchasedMovies, setPurchasedMovies] = useState<Purchase[]>([])
   const [watchHistory, setWatchHistory] = useState<Movie[]>([])

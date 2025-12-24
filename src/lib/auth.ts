@@ -82,7 +82,9 @@ export const authOptions: NextAuthOptions = {
       if (user) {
         // For credentials auth, use the user ID directly
         // For Google auth, convert to UUID
-        const userId = user.id.includes('google') ? getUserUUID(user.id) : user.id
+        const isGoogleAuth = !user.id.includes('-') && /^\d+$/.test(user.id)
+        const userId = isGoogleAuth ? getUserUUID(user.id) : user.id
+        console.log('JWT callback: User ID conversion - Original:', user.id, 'Is Google:', isGoogleAuth, '-> Converted:', userId)
         token.id = userId
         token.role = user.role || 'user'
       }
@@ -90,14 +92,18 @@ export const authOptions: NextAuthOptions = {
       // On every session refresh, fetch role from database
       if (token.id) {
         try {
+          console.log('JWT callback: Fetching role for user ID:', token.id)
           const { data: dbUser } = await supabase
             .from('users')
             .select('role')
             .eq('id', token.id)
             .single()
           
+          console.log('JWT callback: User data from DB:', dbUser)
+          
           if (dbUser) {
             token.role = dbUser.role
+            console.log('JWT callback: Updated token role to:', dbUser.role)
           }
         } catch (error) {
           console.error('Error fetching user role:', error)
@@ -110,6 +116,7 @@ export const authOptions: NextAuthOptions = {
       if (token && session.user) {
         session.user.id = token.id as string
         session.user.role = token.role as 'admin' | 'user'
+        console.log('Session callback: Setting session role to:', token.role)
       }
       return session
     },
