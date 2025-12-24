@@ -18,6 +18,8 @@ export default function Dashboard() {
   const [showMembershipOffer, setShowMembershipOffer] = useState(false)
   const [showAllHistory, setShowAllHistory] = useState(false)
   const [showAllContinue, setShowAllContinue] = useState(false)
+  const [showAllMyMovies, setShowAllMyMovies] = useState(false)
+  const [showAllRecentPurchases, setShowAllRecentPurchases] = useState(false)
 
   // Service role client to bypass RLS for user lookup
   const supabaseAdmin = createClient(
@@ -135,22 +137,47 @@ export default function Dashboard() {
           <p className="text-gray-400">Manage your movie library and viewing history</p>
         </div>
 
-        <div className={`grid gap-6 mb-8 ${membership?.membership_type?.name === 'Akut' ? 'grid-cols-1' : 'grid-cols-1 md:grid-cols-2'}`}>
-          {/* My Movies Section - Hide for Akut members */}
+        <div className="space-y-6 mb-8">
+          {/* My Movies Section - Always show for non-Akut members */}
           {(!membership || membership.membership_type?.name !== 'Akut') && (
             <div className="bg-gray-800 rounded-lg p-6 border border-gray-700">
               <h3 className="text-xl font-semibold mb-4 text-blue-400">My Movies</h3>
-              <p className="text-3xl font-bold mb-2">{purchasedMovies.length}</p>
-              <p className="text-gray-400">Movies in your library</p>
-              <button 
-                onClick={() => window.location.href = '/movies'}
-                className="mt-4 w-full bg-blue-600 hover:bg-blue-700 py-2 px-4 rounded-md transition-colors"
-              >
-                Browse Movies
-              </button>
+              {purchasedMovies.length === 0 ? (
+                <div className="text-center py-8 text-gray-500">
+                  <p className="text-3xl font-bold mb-2">0</p>
+                  <p className="text-gray-400">Movies in your library</p>
+                  <p className="text-sm mt-2">Browse movies and start building your collection</p>
+                </div>
+              ) : (
+                <div>
+                  <div className="flex overflow-x-auto space-x-4 pb-4 scrollbar-hide">
+                    {(showAllMyMovies ? purchasedMovies : purchasedMovies.slice(0, 5)).map((purchase) => (
+                      <div key={purchase.id} className="flex-none w-36 cursor-pointer hover:opacity-80 transition-opacity">
+                        <img 
+                          src={purchase.movie?.thumbnail || '/placeholder-movie.jpg'} 
+                          alt={purchase.movie?.title || 'Movie'} 
+                          className="rounded-md object-cover w-full h-48"
+                        />
+                        <p className="text-sm mt-2 truncate text-white">{purchase.movie?.title}</p>
+                      </div>
+                    ))}
+                  </div>
+                  {purchasedMovies.length > 5 && (
+                    <div className="flex justify-center mt-4">
+                      <button 
+                        onClick={() => setShowAllMyMovies(!showAllMyMovies)}
+                        className="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-md transition-colors text-sm"
+                      >
+                        {showAllMyMovies ? 'Show Less' : `View All (${purchasedMovies.length})`}
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           )}
 
+          {/* Watch History Section */}
           <div className="bg-gray-800 rounded-lg p-6 border border-gray-700">
             <h3 className="text-xl font-semibold mb-4 text-green-400">Watch History</h3>
             {watchHistory.length === 0 ? (
@@ -162,7 +189,7 @@ export default function Dashboard() {
               <div className="relative">
                 <div className={`flex overflow-x-auto space-x-4 pb-4 scrollbar-hide`}>
                   {(showAllHistory ? watchHistory : watchHistory.slice(0, 5)).map((movie) => (
-                    <div key={movie.id} className={`cursor-pointer hover:opacity-80 transition-opacity ${membership?.membership_type?.name === 'Akut' ? 'flex-none w-40' : 'flex-none w-32'}`}>
+                    <div key={movie.id} className={`cursor-pointer hover:opacity-80 transition-opacity ${membership?.membership_type?.name === 'Akut' ? 'flex-none w-40' : 'flex-none w-36'}`}>
                       <img 
                         src={movie.thumbnail || '/placeholder-movie.jpg'} 
                         alt={movie.title} 
@@ -187,40 +214,8 @@ export default function Dashboard() {
           </div>
         </div>
 
-        <div className={`grid gap-8 ${membership?.membership_type?.name === 'Akut' ? 'grid-cols-1' : 'grid-cols-1 lg:grid-cols-2'}`}>
-          {/* Recent Purchases Section - Hide for Akut members */}
-          {(!membership || membership.membership_type?.name !== 'Akut') && (
-            <div className="bg-gray-800 rounded-lg p-6 border border-gray-700">
-              <h3 className="text-xl font-semibold mb-4">Recent Purchases</h3>
-              {purchasedMovies.length === 0 ? (
-                <div className="text-center py-8 text-gray-500">
-                  <p>No movies purchased yet</p>
-                  <p className="text-sm mt-2">Browse movies and start building your collection</p>
-                  <button 
-                    onClick={() => window.location.href = '/movies'}
-                    className="mt-4 px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-md transition-colors text-sm"
-                  >
-                    Browse Movies
-                  </button>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  {purchasedMovies.slice(0, 3).map((purchase) => (
-                    <div key={purchase.id} className="flex items-center justify-between p-3 bg-gray-700 rounded">
-                      <div className="flex-1">
-                        <p className="font-medium">{purchase.movie?.title}</p>
-                        <p className="text-sm text-gray-400">${purchase.amount}</p>
-                      </div>
-                      <button className="px-3 py-1 bg-green-600 hover:bg-green-700 rounded text-sm transition-colors">
-                        Watch
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
-
+        <div className={`space-y-8 ${membership?.membership_type?.name === 'Akut' ? '' : ''}`}>
+          {/* Continue Watching Section */}
           <div className="bg-gray-800 rounded-lg p-6 border border-gray-700">
             <h3 className="text-xl font-semibold mb-4">Continue Watching</h3>
             {watchHistory.length === 0 ? (
@@ -232,7 +227,7 @@ export default function Dashboard() {
               <div className="relative">
                 <div className="flex overflow-x-auto space-x-4 pb-4 scrollbar-hide">
                   {(showAllContinue ? watchHistory : watchHistory.slice(0, 5)).map((movie) => (
-                    <div key={movie.id} className={`cursor-pointer hover:opacity-80 transition-opacity ${membership?.membership_type?.name === 'Akut' ? 'flex-none w-40' : 'flex-none w-32'}`}>
+                    <div key={movie.id} className={`cursor-pointer hover:opacity-80 transition-opacity ${membership?.membership_type?.name === 'Akut' ? 'flex-none w-40' : 'flex-none w-36'}`}>
                       <img 
                         src={movie.thumbnail || '/placeholder-movie.jpg'} 
                         alt={movie.title} 
@@ -255,6 +250,45 @@ export default function Dashboard() {
               </div>
             )}
           </div>
+
+          {/* Recent Purchases Section - Always show for non-Akut members */}
+          {(!membership || membership.membership_type?.name !== 'Akut') && (
+            <div className="bg-gray-800 rounded-lg p-6 border border-gray-700">
+              <h3 className="text-xl font-semibold mb-4">Recent Purchases</h3>
+              {purchasedMovies.length === 0 ? (
+                <div className="text-center py-8 text-gray-500">
+                  <p>No movies purchased yet</p>
+                  <p className="text-sm mt-2">Browse movies and start building your collection</p>
+                </div>
+              ) : (
+                <div>
+                  <div className="flex overflow-x-auto space-x-4 pb-4 scrollbar-hide">
+                    {(showAllRecentPurchases ? purchasedMovies : purchasedMovies.slice(0, 5)).map((purchase) => (
+                      <div key={purchase.id} className="flex-none w-36 cursor-pointer hover:opacity-80 transition-opacity">
+                        <img 
+                          src={purchase.movie?.thumbnail || '/placeholder-movie.jpg'} 
+                          alt={purchase.movie?.title || 'Movie'} 
+                          className="rounded-md object-cover w-full h-48"
+                        />
+                        <p className="text-sm mt-2 truncate text-white">{purchase.movie?.title}</p>
+                        <p className="text-xs text-gray-400">Rp {purchase.amount.toLocaleString('id-ID')}</p>
+                      </div>
+                    ))}
+                  </div>
+                  {purchasedMovies.length > 5 && (
+                    <div className="flex justify-center mt-4">
+                      <button 
+                        onClick={() => setShowAllRecentPurchases(!showAllRecentPurchases)}
+                        className="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-md transition-colors text-sm"
+                      >
+                        {showAllRecentPurchases ? 'Show Less' : `View All (${purchasedMovies.length})`}
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         <div className="mt-8 bg-gray-800 rounded-lg p-6 border border-gray-700">

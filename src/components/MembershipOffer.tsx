@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import { MembershipType } from '@/types'
 
 interface MembershipOfferProps {
@@ -8,6 +9,7 @@ interface MembershipOfferProps {
 }
 
 export default function MembershipOffer({ onUpgrade }: MembershipOfferProps) {
+  const router = useRouter()
   const [membershipTypes, setMembershipTypes] = useState<MembershipType[]>([])
   const [loading, setLoading] = useState(true)
 
@@ -33,7 +35,7 @@ export default function MembershipOffer({ onUpgrade }: MembershipOfferProps) {
           id: '2',
           name: 'Akut',
           description: 'Premium membership with unlimited movie access for 30 days',
-          price: 49.99,
+          price: 50000,
           duration_days: 30,
           movie_access_days: undefined,
           can_purchase_movies: false,
@@ -49,8 +51,8 @@ export default function MembershipOffer({ onUpgrade }: MembershipOfferProps) {
   }
 
   const handleUpgrade = (membershipType: MembershipType) => {
-    if (onUpgrade) {
-      onUpgrade(membershipType)
+    if (membershipType.price > 0) {
+      router.push(`/membership/upgrade?id=${membershipType.id}`)
     }
   }
 
@@ -97,7 +99,7 @@ export default function MembershipOffer({ onUpgrade }: MembershipOfferProps) {
               <h3 className="text-xl font-bold text-white mb-2">{membershipType.name}</h3>
               <p className="text-gray-400 text-sm mb-4">{membershipType.description}</p>
               <div className="text-3xl font-bold text-blue-400 mb-1">
-                ${membershipType.price === 0 ? 'Free' : membershipType.price.toFixed(2)}
+                Rp {membershipType.price === 0 ? 'Free' : membershipType.price.toLocaleString('id-ID')}
               </div>
               <p className="text-gray-400 text-sm">
                 {membershipType.duration_days} days access

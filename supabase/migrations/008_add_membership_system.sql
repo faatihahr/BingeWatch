@@ -78,7 +78,7 @@ CREATE POLICY "Admins can manage memberships" ON memberships
 -- Insert membership types
 INSERT INTO membership_types (name, description, price, duration_days, movie_access_days, can_purchase_movies) VALUES
 ('Gabut', 'Basic membership with 7-day movie access', 0.00, 365, 7, true),
-('Akut', 'Premium membership with unlimited movie access', 49.99, 30, null, false)
+('Akut', 'Premium membership with unlimited movie access', 50000.00, 30, null, false)
 ON CONFLICT (name) DO NOTHING;
 
 -- Create trigger for updated_at on membership_types

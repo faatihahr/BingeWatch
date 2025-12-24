@@ -3,18 +3,32 @@
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import { useEffect, useState, useMemo } from 'react'
-import { Movie } from '@/types'
+import { Movie, Membership } from '@/types'
 import { supabase } from '@/lib/supabase'
 import { formatIDR } from '@/lib/currency'
 import { useFilters } from '@/contexts/FilterContext'
 import TopMovies from '@/components/TopMovies'
+import { createClient } from '@supabase/supabase-js'
 
 export default function MoviesPage() {
   const { data: session, status } = useSession()
   const router = useRouter()
   const [movies, setMovies] = useState<Movie[]>([])
   const [loading, setLoading] = useState(true)
+  const [membership, setMembership] = useState<Membership | null>(null)
   const { filters } = useFilters()
+
+  // Service role client to bypass RLS for user lookup
+  const supabaseAdmin = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://nrsklnfxhvfuqixfvzol.supabase.co',
+    process.env.SUPABASE_SERVICE_ROLE_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5yc2tsbmZ4aHZmdXFpeGZ2em9sIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2NjM5NzEyOCwiZXhwIjoyMDgxOTczMTI4fQ.y6zcM47UFxhguzBo2EHorHckeWgOrLHnyT4sYllZFaQ',
+    {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false
+      }
+    }
+  )
 
   useEffect(() => {
     if (status === 'unauthenticated') {
@@ -24,7 +38,38 @@ export default function MoviesPage() {
 
   useEffect(() => {
     fetchMovies()
+    fetchMembership()
   }, [])
+
+  const fetchMembership = async () => {
+    if (!session?.user) return
+
+    try {
+      // Find user by email using service client
+      const { data: existingUser } = await supabaseAdmin
+        .from('users')
+        .select('id')
+        .eq('email', session.user.email)
+        .single()
+
+      if (!existingUser) return
+
+      // Fetch membership
+      const { data: membershipData } = await supabaseAdmin
+        .from('memberships')
+        .select(`
+          *,
+          membership_type:membership_types(*)
+        `)
+        .eq('user_id', existingUser.id)
+        .eq('is_active', true)
+        .maybeSingle()
+
+      setMembership(membershipData)
+    } catch (error) {
+      console.error('Error fetching membership:', error)
+    }
+  }
 
   const filteredMovies = useMemo(() => {
     return movies.filter(movie => {
@@ -136,8 +181,10 @@ export default function MoviesPage() {
                 </h3>
                 <p className="text-gray-400 text-sm mb-3 line-clamp-2">{movie.description}</p>
                 <div className="flex items-center justify-between mb-3">
-                  <span className="text-blue-400 font-bold">{formatIDR(movie.price)}</span>
-                  <div className="flex items-center">
+                  {membership?.membership_type?.name !== 'Akut' && (
+                    <span className="text-blue-400 font-bold">{formatIDR(movie.price)}</span>
+                  )}
+                  <div className={`flex items-center ${membership?.membership_type?.name === 'Akut' ? 'ml-auto' : ''}`}>
                     <span className="text-yellow-400 text-sm mr-1">★</span>
                     <span className="text-sm text-gray-400">{movie.rating}</span>
                   </div>
