@@ -9,6 +9,7 @@ import { Movie, Membership } from '@/types'
 import { formatIDR } from '@/lib/currency'
 import { FiPlay, FiCalendar, FiClock, FiStar, FiThumbsUp, FiMessageCircle, FiShare2, FiChevronLeft } from 'react-icons/fi'
 import { omdbService } from '@/lib/omdb'
+import MoviePlayerModal from '@/components/MoviePlayerModal'
 
 interface Comment {
   id: string
@@ -53,6 +54,7 @@ export default function MovieDetailPage() {
   const [newComment, setNewComment] = useState('')
   const [newRating, setNewRating] = useState(5)
   const [submittingComment, setSubmittingComment] = useState(false)
+  const [isPlayerOpen, setIsPlayerOpen] = useState(false)
 
   // Service role client to bypass RLS for user lookup
   const supabaseAdmin = createClient(
@@ -218,7 +220,7 @@ export default function MovieDetailPage() {
 
   const handleWatchMovie = () => {
     if (movie && (isPurchased || membership?.membership_type?.name === 'Akut')) {
-      window.open(movie.video_url, '_blank')
+      setIsPlayerOpen(true)
     }
   }
 
@@ -406,10 +408,12 @@ export default function MovieDetailPage() {
                     <span className="text-gray-400">Release:</span>
                     <span>{new Date(movie.release_date).getFullYear()}</span>
                   </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-400">Price:</span>
-                    <span className="font-semibold text-green-400">{formatIDR(movie.price)}</span>
-                  </div>
+                  {!(membership?.membership_type?.name === 'Akut') && (
+                    <div className="flex justify-between">
+                      <span className="text-gray-400">Price:</span>
+                      <span className="font-semibold text-green-400">{formatIDR(movie.price)}</span>
+                    </div>
+                  )}
                 </div>
 
                 {/* Genres */}
@@ -451,7 +455,7 @@ export default function MovieDetailPage() {
                       onClick={handlePurchase}
                       className="w-full py-3 bg-green-600 hover:bg-green-700 rounded-md font-medium transition-colors cursor-pointer"
                     >
-                      Purchase Movie - {formatIDR(movie.price)}
+                      Purchase Movie{!(membership?.membership_type?.name === 'Akut') && ` - ${formatIDR(movie.price)}`}
                     </button>
                   )}
 
@@ -695,6 +699,16 @@ export default function MovieDetailPage() {
           </div>
         </div>
       </div>
+      
+      {/* Movie Player Modal */}
+      {movie && (
+        <MoviePlayerModal
+          isOpen={isPlayerOpen}
+          onClose={() => setIsPlayerOpen(false)}
+          videoUrl={movie.video_url}
+          movieTitle={movie.title}
+        />
+      )}
     </div>
   )
 }
