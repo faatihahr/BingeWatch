@@ -707,6 +707,7 @@ export default function MovieDetailPage() {
           onClose={() => setIsPlayerOpen(false)}
           videoUrl={movie.video_url}
           movieTitle={movie.title}
+          movieId={movie.id}
         />
       )}
     </div>

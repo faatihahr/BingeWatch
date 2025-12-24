@@ -34,7 +34,7 @@ export default function SignInForm({ onSuccess }: SignInFormProps) {
       } else {
         // Sign in successful
         onSuccess?.()
-        router.push('/dashboard')
+        router.push('/movies')
       }
     } catch (error) {
       setError('An error occurred. Please try again.')
@@ -44,7 +44,7 @@ export default function SignInForm({ onSuccess }: SignInFormProps) {
   }
 
   const handleGoogleSignIn = () => {
-    signIn('google', { callbackUrl: '/dashboard' })
+    signIn('google', { callbackUrl: '/movies' })
   }
 
   return (

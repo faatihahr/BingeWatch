@@ -83,7 +83,7 @@ export default function SignUpForm({ onSuccess }: SignUpFormProps) {
       } else {
         // Registration and sign in successful
         onSuccess?.()
-        router.push('/dashboard')
+        router.push('/movies')
       }
     } catch (error) {
       setError('An error occurred. Please try again.')
@@ -93,7 +93,7 @@ export default function SignUpForm({ onSuccess }: SignUpFormProps) {
   }
 
   const handleGoogleSignUp = () => {
-    signIn('google', { callbackUrl: '/dashboard' })
+    signIn('google', { callbackUrl: '/movies' })
   }
 
   return (

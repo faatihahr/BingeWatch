@@ -2,19 +2,78 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { FiX, FiMinimize2, FiMaximize2, FiVolume2, FiVolumeX } from 'react-icons/fi'
+import { supabase } from '@/lib/supabase'
+import { useSession } from 'next-auth/react'
 
 interface MoviePlayerModalProps {
   isOpen: boolean
   onClose: () => void
   videoUrl: string
   movieTitle: string
+  movieId: string
 }
 
-export default function MoviePlayerModal({ isOpen, onClose, videoUrl, movieTitle }: MoviePlayerModalProps) {
+export default function MoviePlayerModal({ isOpen, onClose, videoUrl, movieTitle, movieId }: MoviePlayerModalProps) {
+  const { data: session } = useSession()
   const [isMinimized, setIsMinimized] = useState(false)
   const [isFullscreen, setIsFullscreen] = useState(false)
   const [isMuted, setIsMuted] = useState(false)
   const videoRef = useRef<HTMLVideoElement>(null)
+  const [hasRecordedWatch, setHasRecordedWatch] = useState(false)
+
+  // Record watch history when player opens
+  useEffect(() => {
+    if (isOpen && session?.user && movieId && !hasRecordedWatch) {
+      recordWatchHistory()
+      setHasRecordedWatch(true)
+    }
+  }, [isOpen, session, movieId, hasRecordedWatch])
+
+  const recordWatchHistory = async () => {
+    if (!session?.user || !movieId) return
+
+    try {
+      // Find user by email using service client
+      const { data: existingUser } = await supabase
+        .from('users')
+        .select('id')
+        .eq('email', session.user.email)
+        .single()
+
+      if (!existingUser) return
+
+      // Check if watch history already exists for this movie
+      const { data: existingHistory } = await supabase
+        .from('watch_history')
+        .select('id')
+        .eq('user_id', existingUser.id)
+        .eq('movie_id', movieId)
+        .single()
+
+      if (existingHistory) {
+        // Update existing record
+        await supabase
+          .from('watch_history')
+          .update({
+            watched_at: new Date().toISOString(),
+            progress_seconds: 0
+          })
+          .eq('id', existingHistory.id)
+      } else {
+        // Create new watch history record
+        await supabase
+          .from('watch_history')
+          .insert({
+            user_id: existingUser.id,
+            movie_id: movieId,
+            progress_seconds: 0,
+            completed: false
+          })
+      }
+    } catch (error) {
+      console.error('Error recording watch history:', error)
+    }
+  }
 
   useEffect(() => {
     const handleEsc = (e: KeyboardEvent) => {

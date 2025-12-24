@@ -17,9 +17,8 @@ export async function middleware(request: NextRequest) {
                         request.cookies.get('__Secure-next-auth.session-token')
     
     if (sessionCookie) {
-      // User is logged in, redirect to dashboard (default to user dashboard)
-      // We'll let the client-side handle role-based redirect
-      return NextResponse.redirect(new URL('/dashboard', request.url))
+      // User is logged in, redirect to movies page
+      return NextResponse.redirect(new URL('/movies', request.url))
     }
   }
   
