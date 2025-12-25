@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { FiX, FiMinimize2, FiMaximize2, FiVolume2, FiVolumeX } from 'react-icons/fi'
 import { supabase } from '@/lib/supabase'
+import { createClient } from '@supabase/supabase-js'
 import { useSession } from 'next-auth/react'
 
 interface MoviePlayerModalProps {
@@ -21,6 +22,18 @@ export default function MoviePlayerModal({ isOpen, onClose, videoUrl, movieTitle
   const videoRef = useRef<HTMLVideoElement>(null)
   const [hasRecordedWatch, setHasRecordedWatch] = useState(false)
 
+  // Service role client to bypass RLS for watch history recording
+  const supabaseAdmin = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://nrsklnfxhvfuqixfvzol.supabase.co',
+    process.env.SUPABASE_SERVICE_ROLE_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5yc2tsbmZ4aHZmdXFpeGZ2em9sIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2NjM5NzEyOCwiZXhwIjoyMDgxOTczMTI4fQ.y6zcM47UFxhguzBo2EHorHckeWgOrLHnyT4sYllZFaQ',
+    {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false
+      }
+    }
+  )
+
   // Record watch history when player opens
   useEffect(() => {
     if (isOpen && session?.user && movieId && !hasRecordedWatch) {
@@ -32,36 +45,57 @@ export default function MoviePlayerModal({ isOpen, onClose, videoUrl, movieTitle
   const recordWatchHistory = async () => {
     if (!session?.user || !movieId) return
 
+    console.log('MoviePlayerModal: Recording watch history for:', {
+      userEmail: session.user.email,
+      movieId,
+      movieTitle
+    })
+
     try {
       // Find user by email using service client
-      const { data: existingUser } = await supabase
+      const { data: existingUser, error: userError } = await supabaseAdmin
         .from('users')
         .select('id')
         .eq('email', session.user.email)
-        .single()
+        .maybeSingle()
 
-      if (!existingUser) return
+      console.log('MoviePlayerModal: User lookup result:', { existingUser, userError })
+
+      if (!existingUser) {
+        console.error('MoviePlayerModal: User not found in database')
+        return
+      }
 
       // Check if watch history already exists for this movie
-      const { data: existingHistory } = await supabase
+      const { data: existingHistory, error: historyError } = await supabaseAdmin
         .from('watch_history')
         .select('id')
         .eq('user_id', existingUser.id)
         .eq('movie_id', movieId)
-        .single()
+        .maybeSingle()
+
+      console.log('MoviePlayerModal: Existing history check:', { existingHistory, historyError })
 
       if (existingHistory) {
         // Update existing record
-        await supabase
+        console.log('MoviePlayerModal: Updating existing watch history')
+        const { error: updateError } = await supabaseAdmin
           .from('watch_history')
           .update({
             watched_at: new Date().toISOString(),
             progress_seconds: 0
           })
           .eq('id', existingHistory.id)
+
+        if (updateError) {
+          console.error('MoviePlayerModal: Update error:', updateError)
+        } else {
+          console.log('MoviePlayerModal: Watch history updated successfully')
+        }
       } else {
         // Create new watch history record
-        await supabase
+        console.log('MoviePlayerModal: Creating new watch history')
+        const { data: newHistory, error: insertError } = await supabaseAdmin
           .from('watch_history')
           .insert({
             user_id: existingUser.id,
@@ -69,9 +103,16 @@ export default function MoviePlayerModal({ isOpen, onClose, videoUrl, movieTitle
             progress_seconds: 0,
             completed: false
           })
+          .select()
+
+        if (insertError) {
+          console.error('MoviePlayerModal: Insert error:', insertError)
+        } else {
+          console.log('MoviePlayerModal: Watch history created successfully:', newHistory)
+        }
       }
     } catch (error) {
-      console.error('Error recording watch history:', error)
+      console.error('MoviePlayerModal: Error recording watch history:', error)
     }
   }
 

@@ -408,7 +408,7 @@ export default function MovieDetailPage() {
                     <span className="text-gray-400">Release:</span>
                     <span>{new Date(movie.release_date).getFullYear()}</span>
                   </div>
-                  {!(membership?.membership_type?.name === 'Akut') && (
+                  {!(membership?.membership_type?.name === 'Akut') && !isPurchased && (
                     <div className="flex justify-between">
                       <span className="text-gray-400">Price:</span>
                       <span className="font-semibold text-green-400">{formatIDR(movie.price)}</span>
@@ -455,7 +455,7 @@ export default function MovieDetailPage() {
                       onClick={handlePurchase}
                       className="w-full py-3 bg-green-600 hover:bg-green-700 rounded-md font-medium transition-colors cursor-pointer"
                     >
-                      Purchase Movie{!(membership?.membership_type?.name === 'Akut') && ` - ${formatIDR(movie.price)}`}
+                      Purchase Movie{!(membership?.membership_type?.name === 'Akut') && !isPurchased && ` - ${formatIDR(movie.price)}`}
                     </button>
                   )}
 

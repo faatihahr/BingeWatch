@@ -78,35 +78,49 @@ export const authOptions: NextAuthOptions = {
     strategy: 'jwt',
   },
   callbacks: {
-    async jwt({ token, user }) {
+    async jwt({ token, user, account }) {
       if (user) {
         // For credentials auth, use the user ID directly
         // For Google auth, convert to UUID
-        const isGoogleAuth = !user.id.includes('-') && /^\d+$/.test(user.id)
+        const isGoogleAuth = account?.provider === 'google'
         const userId = isGoogleAuth ? getUserUUID(user.id) : user.id
         console.log('JWT callback: User ID conversion - Original:', user.id, 'Is Google:', isGoogleAuth, '-> Converted:', userId)
+        
+        // Store all user data in token during login
         token.id = userId
         token.role = user.role || 'user'
-      }
-      
-      // On every session refresh, fetch role from database
-      if (token.id) {
-        try {
-          console.log('JWT callback: Fetching role for user ID:', token.id)
-          const { data: dbUser } = await supabase
-            .from('users')
-            .select('role')
-            .eq('id', token.id)
-            .single()
-          
-          console.log('JWT callback: User data from DB:', dbUser)
-          
-          if (dbUser) {
-            token.role = dbUser.role
-            console.log('JWT callback: Updated token role to:', dbUser.role)
+        token.originalId = user.id // Store original ID for reference
+        token.email = user.email
+        token.name = user.name
+        token.lastSync = Date.now() // Track when data was synced
+        
+        // For Google auth users, create user record if not exists
+        if (isGoogleAuth) {
+          try {
+            const { data: existingUser } = await supabase
+              .from('users')
+              .select('role')
+              .eq('id', userId)
+              .single()
+            
+            if (!existingUser) {
+              console.log('Creating user record for Google auth:', userId)
+              await supabase
+                .from('users')
+                .insert({
+                  id: userId,
+                  email: user.email,
+                  name: user.name,
+                  role: 'user'
+                })
+            } else {
+              // Update token with actual role from database
+              token.role = existingUser.role
+            }
+          } catch (error) {
+            console.error('Error checking/creating Google user:', error)
+            // Keep default role 'user' on error
           }
-        } catch (error) {
-          console.error('Error fetching user role:', error)
         }
       }
       

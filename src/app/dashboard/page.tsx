@@ -48,7 +48,7 @@ export default function Dashboard() {
         .from('users')
         .select('id, name, email')
         .eq('email', session.user.email)
-        .single()
+        .maybeSingle()
 
       if (userError || !existingUser) {
         console.error('User not found:', userError)
@@ -60,7 +60,7 @@ export default function Dashboard() {
         .from('watch_history')
         .select(`
           *,
-          movies (*)
+          movie: movies (*)
         `)
         .eq('user_id', existingUser.id)
         .order('watched_at', { ascending: false })
@@ -69,7 +69,7 @@ export default function Dashboard() {
         console.error('Watch history error:', watchHistoryError)
       } else {
         // Transform watch history data to Movie objects
-        const movies = watchHistoryData?.map(item => item.movies).filter(Boolean) || []
+        const movies = watchHistoryData?.map(item => item.movie).filter(Boolean) || []
         setWatchHistory(movies)
       }
 
@@ -78,7 +78,7 @@ export default function Dashboard() {
         .from('purchases')
         .select(`
           *,
-          movies (*)
+          movie: movies (*)
         `)
         .eq('user_id', existingUser.id)
         .eq('is_expired', false)

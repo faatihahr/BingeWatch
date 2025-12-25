@@ -40,7 +40,7 @@ export default function Header({ className = "" }: { className?: string }) {
             .from('users')
             .select('id, name, email')
             .eq('email', session.user.email)
-            .single()
+            .maybeSingle()
 
           console.log('Header: User lookup result:', { existingUser, userError })
 

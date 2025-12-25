@@ -70,40 +70,8 @@ export default function PurchasePage() {
       return
     }
 
-    setProcessingPayment(true)
-    try {
-      // Check if already purchased
-      const { data: existingPurchase } = await supabase
-        .from('purchases')
-        .select('*')
-        .eq('user_id', session.user.id)
-        .eq('movie_id', movie.id)
-        .single()
-
-      if (existingPurchase) {
-        setError('You have already purchased this movie')
-        return
-      }
-
-      // Create purchase record
-      const { error } = await supabase
-        .from('purchases')
-        .insert([{
-          user_id: session.user.id,
-          movie_id: movie.id,
-          amount: movie.price
-        }])
-
-      if (error) throw error
-
-      // Redirect to movie page after successful purchase
-      router.push(`/movies/${movie.id}?purchased=true`)
-    } catch (err) {
-      console.error('Payment error:', err)
-      setError('Failed to process payment. Please try again.')
-    } finally {
-      setProcessingPayment(false)
-    }
+    // Redirect to payment method selection page
+    router.push(`/payment/checkout?movieId=${movie.id}`)
   }
 
   const handleCancel = () => {

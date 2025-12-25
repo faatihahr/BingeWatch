@@ -1,30 +1,53 @@
 'use client'
 
 import { useState } from 'react'
-import { FiX, FiCheck, FiCreditCard, FiShield, FiClock } from 'react-icons/fi'
+import { FiX, FiCheck, FiCreditCard, FiShield, FiClock, FiSmartphone } from 'react-icons/fi'
 import { MembershipType } from '@/types'
 
 interface MembershipPurchaseModalProps {
   isOpen: boolean
   onClose: () => void
   membershipType: MembershipType
-  onConfirmPurchase: () => void
+  onConfirmPurchase: (paymentData?: any) => void
+  userEmail?: string
+  userName?: string
 }
 
 export default function MembershipPurchaseModal({ 
   isOpen, 
   onClose, 
   membershipType, 
-  onConfirmPurchase 
+  onConfirmPurchase,
+  userEmail,
+  userName
 }: MembershipPurchaseModalProps) {
   const [isProcessing, setIsProcessing] = useState(false)
+  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<'invoice' | 'ewallet' | 'va'>('invoice')
+  const [phoneNumber, setPhoneNumber] = useState('')
+  const [selectedBank, setSelectedBank] = useState('BCA')
+  const [selectedEwallet, setSelectedEwallet] = useState('OVO')
 
   if (!isOpen) return null
 
   const handleConfirmPurchase = async () => {
+    if (!userEmail) {
+      alert('Email is required for payment')
+      return
+    }
+
     setIsProcessing(true)
     try {
-      await onConfirmPurchase()
+      const paymentData = {
+        membershipType,
+        userEmail,
+        userName,
+        paymentMethod: selectedPaymentMethod,
+        phoneNumber: selectedPaymentMethod === 'ewallet' ? phoneNumber : undefined,
+        bankCode: selectedPaymentMethod === 'va' ? selectedBank : undefined,
+        ewalletType: selectedPaymentMethod === 'ewallet' ? selectedEwallet : undefined,
+      }
+      
+      await onConfirmPurchase(paymentData)
       onClose()
     } catch (error) {
       console.error('Purchase error:', error)
@@ -110,14 +133,47 @@ export default function MembershipPurchaseModal({
             </div>
           </div>
 
+          {/* Payment Method Selection */}
+          <div className="mb-6">
+            <h4 className="text-white font-semibold mb-3">Choose Payment Method:</h4>
+            <div className="space-y-2">
+              <button
+                onClick={() => setSelectedPaymentMethod('invoice')}
+                className={`w-full p-3 rounded-lg border transition-colors flex items-center ${
+                  selectedPaymentMethod === 'invoice'
+                    ? 'bg-purple-600 border-purple-500 text-white'
+                    : 'bg-gray-700 border-gray-600 text-gray-300 hover:bg-gray-600'
+                }`}
+              >
+                <FiCreditCard className="mr-3" />
+                <div className="text-left">
+                  <div className="font-medium">Virtual Account / E-Wallet</div>
+                  <div className="text-sm opacity-75">Pay via bank transfer or e-wallet</div>
+                </div>
+              </button>
+
+              {selectedPaymentMethod === 'invoice' && (
+                <div className="ml-4 p-3 bg-gray-700 rounded-lg text-sm text-gray-300">
+                  You will be redirected to a secure payment page with multiple payment options including:
+                  <ul className="mt-2 space-y-1">
+                    <li>• Bank Transfer (BCA, Mandiri, BNI, etc.)</li>
+                    <li>• E-Wallet (OVO, GoPay, DANA, ShopeePay)</li>
+                    <li>• Credit Card</li>
+                    <li>• QRIS</li>
+                  </ul>
+                </div>
+              )}
+            </div>
+          </div>
+
           {/* Payment Info */}
           <div className="bg-gray-900 rounded-lg p-4 mb-6">
             <div className="flex items-center text-gray-400 text-sm mb-2">
               <FiCreditCard className="mr-2" />
-              Payment Information
+              Secure Payment Processing
             </div>
             <p className="text-gray-300 text-sm">
-              You will be redirected to secure payment page to complete your purchase.
+              Your payment is processed securely by Xendit, a trusted payment gateway in Indonesia.
             </p>
           </div>
 
