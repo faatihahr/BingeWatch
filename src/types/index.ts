@@ -29,6 +29,9 @@ export interface Purchase {
   created_at: string
   expires_at?: string
   is_expired: boolean
+  purchase_date: string
+  payment_method?: string
+  payment_status?: string
   movie?: Movie
 }
 

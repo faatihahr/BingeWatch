@@ -3,12 +3,13 @@
 import { useState, useEffect } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { FiX, FiCheck, FiCreditCard, FiShield, FiClock, FiArrowLeft } from 'react-icons/fi'
+import { supabase } from '@/lib/supabase'
 import { MembershipType } from '@/types'
 
 export default function MembershipUpgradePage() {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const membershipId = searchParams.get('id')
+  const membershipId = searchParams.get('membershipId') || searchParams.get('id')
   const [membershipType, setMembershipType] = useState<MembershipType | null>(null)
   const [loading, setLoading] = useState(true)
   const [isProcessing, setIsProcessing] = useState(false)
@@ -21,10 +22,20 @@ export default function MembershipUpgradePage() {
 
   const fetchMembershipType = async () => {
     try {
-      // Mock data - replace with actual API call
+      const { data, error } = await supabase
+        .from('membership_types')
+        .select('*')
+        .eq('id', membershipId)
+        .single()
+
+      if (error) throw error
+      setMembershipType(data)
+    } catch (error) {
+      console.error('Error fetching membership type:', error)
+      // Fallback to mock data if database fails
       const mockMembershipTypes: MembershipType[] = [
         {
-          id: '1',
+          id: '00000000-0000-0000-0000-000000000001',
           name: 'Gabut',
           description: 'Basic membership with 7-day movie access',
           price: 0,
@@ -34,7 +45,7 @@ export default function MembershipUpgradePage() {
           created_at: new Date().toISOString()
         },
         {
-          id: '2',
+          id: '00000000-0000-0000-0000-000000000002',
           name: 'Akut',
           description: 'Premium membership with unlimited movie access for 30 days',
           price: 50000,
@@ -47,8 +58,6 @@ export default function MembershipUpgradePage() {
 
       const membership = mockMembershipTypes.find(m => m.id === membershipId)
       setMembershipType(membership || null)
-    } catch (error) {
-      console.error('Error fetching membership type:', error)
     } finally {
       setLoading(false)
     }
@@ -57,18 +66,8 @@ export default function MembershipUpgradePage() {
   const handleConfirmPurchase = async () => {
     if (!membershipType) return
 
-    setIsProcessing(true)
-    try {
-      // Simulate payment processing
-      await new Promise(resolve => setTimeout(resolve, 2000))
-      
-      // Redirect to success page or back to dashboard
-      router.push('/dashboard?upgrade=success')
-    } catch (error) {
-      console.error('Purchase error:', error)
-    } finally {
-      setIsProcessing(false)
-    }
+    // Redirect to the membership checkout page
+    router.push(`/payment/membership/checkout?membershipId=${membershipType.id}`)
   }
 
   if (loading) {

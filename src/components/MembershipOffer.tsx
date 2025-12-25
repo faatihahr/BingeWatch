@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
+import { supabase } from '@/lib/supabase'
 import { MembershipType } from '@/types'
 
 interface MembershipOfferProps {
@@ -19,10 +20,19 @@ export default function MembershipOffer({ onUpgrade }: MembershipOfferProps) {
 
   const fetchMembershipTypes = async () => {
     try {
-      // Mock data for now - replace with actual API call
+      const { data, error } = await supabase
+        .from('membership_types')
+        .select('*')
+        .order('price', { ascending: true })
+
+      if (error) throw error
+      setMembershipTypes(data || [])
+    } catch (error) {
+      console.error('Error fetching membership types:', error)
+      // Fallback to mock data if database fails
       const mockMembershipTypes: MembershipType[] = [
         {
-          id: '1',
+          id: '00000000-0000-0000-0000-000000000001',
           name: 'Gabut',
           description: 'Basic membership with 7-day movie access',
           price: 0,
@@ -32,7 +42,7 @@ export default function MembershipOffer({ onUpgrade }: MembershipOfferProps) {
           created_at: new Date().toISOString()
         },
         {
-          id: '2',
+          id: '00000000-0000-0000-0000-000000000002',
           name: 'Akut',
           description: 'Premium membership with unlimited movie access for 30 days',
           price: 50000,
@@ -43,8 +53,6 @@ export default function MembershipOffer({ onUpgrade }: MembershipOfferProps) {
         }
       ]
       setMembershipTypes(mockMembershipTypes)
-    } catch (error) {
-      console.error('Error fetching membership types:', error)
     } finally {
       setLoading(false)
     }
@@ -52,7 +60,7 @@ export default function MembershipOffer({ onUpgrade }: MembershipOfferProps) {
 
   const handleUpgrade = (membershipType: MembershipType) => {
     if (membershipType.price > 0) {
-      router.push(`/membership/upgrade?id=${membershipType.id}`)
+      router.push(`/payment/membership/checkout?membershipId=${membershipType.id}`)
     }
   }
 

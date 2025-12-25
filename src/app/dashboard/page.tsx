@@ -5,13 +5,16 @@ import { useState, useEffect } from 'react'
 import { Movie, Purchase, Membership } from '@/types'
 import MembershipOffer from '@/components/MembershipOffer'
 import { useSession } from 'next-auth/react'
+import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { createClient } from '@supabase/supabase-js'
 
 export default function Dashboard() {
   const { user, isLoading, isAuthenticated } = useAuth()
   const { data: session } = useSession()
+  const router = useRouter()
   const [purchasedMovies, setPurchasedMovies] = useState<Purchase[]>([])
+  const [allPurchases, setAllPurchases] = useState<Purchase[]>([])
   const [watchHistory, setWatchHistory] = useState<Movie[]>([])
   const [favorites, setFavorites] = useState<Movie[]>([])
   const [membership, setMembership] = useState<Membership | null>(null)
@@ -73,8 +76,26 @@ export default function Dashboard() {
         setWatchHistory(movies)
       }
 
-      // Fetch purchases
+      // Fetch purchases (for My Movies - only successful payments)
       const { data: purchaseData, error: purchaseError } = await supabaseAdmin
+        .from('purchases')
+        .select(`
+          *,
+          movie: movies (*)
+        `)
+        .eq('user_id', existingUser.id)
+        .eq('is_expired', false)
+        .in('payment_status', ['paid', 'completed', 'Completed'])
+        .order('purchase_date', { ascending: false })
+
+      if (purchaseError) {
+        console.error('Purchase error:', purchaseError)
+      } else {
+        setPurchasedMovies(purchaseData || [])
+      }
+
+      // Fetch all purchases (for Recent Purchases - includes all payment statuses)
+      const { data: allPurchaseData, error: allPurchaseError } = await supabaseAdmin
         .from('purchases')
         .select(`
           *,
@@ -84,10 +105,10 @@ export default function Dashboard() {
         .eq('is_expired', false)
         .order('purchase_date', { ascending: false })
 
-      if (purchaseError) {
-        console.error('Purchase error:', purchaseError)
+      if (allPurchaseError) {
+        console.error('All purchases error:', allPurchaseError)
       } else {
-        setPurchasedMovies(purchaseData || [])
+        setAllPurchases(allPurchaseData || [])
       }
 
       // Fetch membership
@@ -255,7 +276,7 @@ export default function Dashboard() {
           {(!membership || membership.membership_type?.name !== 'Akut') && (
             <div className="bg-gray-800 rounded-lg p-6 border border-gray-700">
               <h3 className="text-xl font-semibold mb-4">Recent Purchases</h3>
-              {purchasedMovies.length === 0 ? (
+              {allPurchases.length === 0 ? (
                 <div className="text-center py-8 text-gray-500">
                   <p>No movies purchased yet</p>
                   <p className="text-sm mt-2">Browse movies and start building your collection</p>
@@ -263,8 +284,12 @@ export default function Dashboard() {
               ) : (
                 <div>
                   <div className="flex overflow-x-auto space-x-4 pb-4 scrollbar-hide">
-                    {(showAllRecentPurchases ? purchasedMovies : purchasedMovies.slice(0, 5)).map((purchase) => (
-                      <div key={purchase.id} className="flex-none w-36 cursor-pointer hover:opacity-80 transition-opacity">
+                    {(showAllRecentPurchases ? allPurchases : allPurchases.slice(0, 5)).map((purchase) => (
+                      <div 
+                        key={purchase.id} 
+                        className="flex-none w-36 cursor-pointer hover:opacity-80 transition-opacity"
+                        onClick={() => router.push(`/purchase/${purchase.id}`)}
+                      >
                         <img 
                           src={purchase.movie?.thumbnail || '/placeholder-movie.jpg'} 
                           alt={purchase.movie?.title || 'Movie'} 
@@ -275,13 +300,13 @@ export default function Dashboard() {
                       </div>
                     ))}
                   </div>
-                  {purchasedMovies.length > 5 && (
+                  {allPurchases.length > 5 && (
                     <div className="flex justify-center mt-4">
                       <button 
                         onClick={() => setShowAllRecentPurchases(!showAllRecentPurchases)}
                         className="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-md transition-colors text-sm"
                       >
-                        {showAllRecentPurchases ? 'Show Less' : `View All (${purchasedMovies.length})`}
+                        {showAllRecentPurchases ? 'Show Less' : `View All (${allPurchases.length})`}
                       </button>
                     </div>
                   )}

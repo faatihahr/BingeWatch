@@ -157,13 +157,14 @@ export default function MovieDetailPage() {
               setMembership(membershipData)
               
               // Check purchase with correct user ID
-              console.log('Movie Page: Checking purchases...')
+              console.log('Movie Page: Check if user has purchased this movie (only successful payments)')
               const { data: purchaseData, error: purchaseError } = await supabaseAdmin
                 .from('purchases')
                 .select('*')
                 .eq('user_id', existingUser.id)
                 .eq('movie_id', movieId)
                 .eq('is_expired', false)
+                .in('payment_status', ['paid', 'completed', 'Completed'])
                 .maybeSingle()
 
               console.log('Movie Page: Purchase query result:', { purchaseData, purchaseError })
