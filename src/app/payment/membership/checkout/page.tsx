@@ -63,6 +63,29 @@ export default function MembershipCheckoutPage() {
   // Separate state for accordion expansion
   const [expandedAccordion, setExpandedAccordion] = useState<string>('')
 
+  // Server-side fallback to create membership purchase record
+  const createMembershipPurchaseServer = async (purchaseData: any) => {
+    try {
+      const res = await fetch('/api/payment/create-membership-purchase', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(purchaseData)
+      })
+
+      const json = await res.json()
+      if (!res.ok) {
+        console.error('Server fallback failed to create membership purchase:', json)
+        return { success: false, error: json.error }
+      }
+
+      console.log('Server fallback created membership purchase:', json)
+      return { success: true, data: json.data }
+    } catch (err) {
+      console.error('Server fallback error creating membership purchase:', err)
+      return { success: false, error: err }
+    }
+  }
+
   useEffect(() => {
     if (!membershipId) {
       setError('Membership ID is required')
@@ -281,28 +304,55 @@ export default function MembershipCheckoutPage() {
         if (invoiceUrl) {
           console.log('Opening invoice URL:', invoiceUrl)
           console.log('About to redirect to:', invoiceUrl)
-          
+
+          // Save pending membership purchase record BEFORE redirecting to Xendit
+          try {
+            const purchaseData = {
+              user_id: existingUser.id,
+              membership_type_id: membershipType.id,
+              amount: membershipType.price,
+              payment_status: 'pending',
+              payment_method: 'Credit Card',
+              external_id: (paymentResponse as any)?.externalId || (paymentResponse as any)?.id || `membership-${membershipType.id}-${existingUser.id}-${Date.now()}`,
+              invoice_url: invoiceUrl,
+              va_number: null
+            }
+
+            const { data: savedPurchase, error: saveError } = await supabaseAdmin
+              .from('membership_purchases')
+              .upsert([purchaseData], { onConflict: 'user_id,membership_type_id' })
+
+            if (saveError || !savedPurchase) {
+              console.error('Failed to upsert membership purchase before redirect (credit_card):', saveError, savedPurchase)
+              // Use server-side API as the primary writer if client upsert fails
+              const fallback = await createMembershipPurchaseServer(purchaseData)
+              if (!fallback.success) console.error('Server fallback also failed (credit_card):', fallback.error)
+              else console.log('✅ Server created membership purchase (credit_card):', fallback.data)
+            } else {
+              console.log('✅ Membership purchase saved successfully before redirect (credit_card):', savedPurchase)
+            }
+          } catch (dbErr) {
+            console.error('Error saving membership purchase before redirect (credit_card):', dbErr)
+          }
+
           // Try multiple redirect methods
           try {
-            // Method 1: Direct redirect
             window.location.href = invoiceUrl
           } catch (e) {
             console.log('Direct redirect failed, trying window.open')
             try {
-              // Method 2: Window open with same window
               window.open(invoiceUrl, '_self')
             } catch (e2) {
               console.log('Window open failed, trying assign')
-              // Method 3: Location assign
               window.location.assign(invoiceUrl)
             }
           }
-          
+
           // Fallback - force redirect after delay
           setTimeout(() => {
             window.location.href = invoiceUrl
           }, 500)
-          
+
           return // Stop execution here
         } else {
           console.error('No invoice URL found in response:', paymentResponse)
@@ -362,7 +412,36 @@ export default function MembershipCheckoutPage() {
         if (data.invoiceUrl) {
           console.log('Opening e-wallet invoice URL:', data.invoiceUrl);
           console.log('About to redirect to:', data.invoiceUrl);
-          
+
+          // Save pending membership purchase record BEFORE redirecting to Xendit
+          try {
+            const purchaseData = {
+              user_id: existingUser.id,
+              membership_type_id: membershipType.id,
+              amount: membershipType.price,
+              payment_status: 'pending',
+              payment_method: subMethod || selectedEwallet,
+              external_id: (paymentResponse as any)?.externalId || (paymentResponse as any)?.invoiceId || (paymentResponse as any)?.id || `membership-${membershipType.id}-${existingUser.id}-${Date.now()}`,
+              invoice_url: data.invoiceUrl,
+              va_number: null
+            }
+
+            const { data: savedPurchase, error: saveError } = await supabaseAdmin
+                .from('membership_purchases')
+                .upsert([purchaseData], { onConflict: 'user_id,membership_type_id' })
+
+              if (saveError || !savedPurchase) {
+                console.error('Failed to upsert membership purchase before redirect (ewallet):', saveError, savedPurchase)
+                const fallback = await createMembershipPurchaseServer(purchaseData)
+                if (!fallback.success) console.error('Server fallback also failed (ewallet):', fallback.error)
+                else console.log('✅ Server created membership purchase (ewallet):', fallback.data)
+              } else {
+                console.log('✅ Membership purchase saved successfully before redirect (ewallet):', savedPurchase)
+              }
+          } catch (dbErr) {
+            console.error('Error saving membership purchase before redirect (ewallet):', dbErr)
+          }
+
           // Try multiple redirect methods
           try {
             window.location.href = data.invoiceUrl
@@ -375,11 +454,11 @@ export default function MembershipCheckoutPage() {
               window.location.assign(data.invoiceUrl)
             }
           }
-          
+
           setTimeout(() => {
             window.location.href = data.invoiceUrl
           }, 500)
-          
+
           return // Stop execution here
         }
 
@@ -401,7 +480,36 @@ export default function MembershipCheckoutPage() {
         if (qrCodeUrl) {
           console.log('Opening QRIS URL:', qrCodeUrl)
           console.log('About to redirect to:', qrCodeUrl)
-          
+
+          // Save pending membership purchase record BEFORE redirecting to QRIS
+          try {
+            const purchaseData = {
+              user_id: existingUser.id,
+              membership_type_id: membershipType.id,
+              amount: membershipType.price,
+              payment_status: 'pending',
+              payment_method: 'QRIS',
+              external_id: (paymentResponse as any)?.externalId || (paymentResponse as any)?.id || `membership-${membershipType.id}-${existingUser.id}-${Date.now()}`,
+              invoice_url: qrCodeUrl,
+              va_number: null
+            }
+
+            const { data: savedPurchase, error: saveError } = await supabaseAdmin
+                .from('membership_purchases')
+                .upsert([purchaseData], { onConflict: 'user_id,membership_type_id' })
+
+              if (saveError || !savedPurchase) {
+                console.error('Failed to upsert membership purchase before redirect (QRIS):', saveError, savedPurchase)
+                const fallback = await createMembershipPurchaseServer(purchaseData)
+                if (!fallback.success) console.error('Server fallback also failed (QRIS):', fallback.error)
+                else console.log('✅ Server created membership purchase (QRIS):', fallback.data)
+              } else {
+                console.log('✅ Membership purchase saved successfully before redirect (QRIS):', savedPurchase)
+              }
+          } catch (dbErr) {
+            console.error('Error saving membership purchase before redirect (QRIS):', dbErr)
+          }
+
           // Try multiple redirect methods
           try {
             window.location.href = qrCodeUrl
@@ -414,11 +522,11 @@ export default function MembershipCheckoutPage() {
               window.location.assign(qrCodeUrl)
             }
           }
-          
+
           setTimeout(() => {
             window.location.href = qrCodeUrl
           }, 500)
-          
+
           return // Stop execution here
         }
 
@@ -430,11 +538,36 @@ export default function MembershipCheckoutPage() {
         })
       }
 
-      // Create pending membership purchase record
+      // Create pending membership purchase record (use server API primary)
       try {
-        await supabaseAdmin
+        const purchaseData = {
+          user_id: existingUser.id,
+          membership_type_id: membershipType.id,
+          amount: membershipType.price,
+          payment_status: 'pending',
+          payment_method: method === 'virtual_account' ? `${selectedBank} VA` : method === 'ewallet' ? selectedEwallet : method,
+          external_id: (paymentResponse as any)?.id || `membership-${membershipType.id}-${existingUser.id}-${Date.now()}`,
+          invoice_url: (paymentResponse as any)?.invoice_url || (paymentResponse as any)?.invoiceUrl || (paymentResponse as any)?.qrCodeUrl,
+          va_number: (paymentResponse as any)?.virtualAccount?.accountNumber || null
+        }
+
+        // Try client upsert first for speed, then fallback to server API
+        const { data: savedPurchase, error: saveError } = await supabaseAdmin
           .from('membership_purchases')
-          .insert([{
+          .upsert([purchaseData], { onConflict: 'user_id,membership_type_id' })
+
+        if (saveError || !savedPurchase) {
+          console.error('Failed to create membership purchase (final client upsert):', saveError, savedPurchase)
+          const fallback = await createMembershipPurchaseServer(purchaseData)
+          if (!fallback.success) console.error('Server fallback also failed (final):', fallback.error)
+          else console.log('✅ Server created membership purchase (final):', fallback.data)
+        } else {
+          console.log('✅ Membership purchase created (final client upsert):', savedPurchase)
+        }
+      } catch (dbError) {
+        console.error('Failed to create membership purchase record (final):', dbError)
+        try {
+          const fallback = await createMembershipPurchaseServer({
             user_id: existingUser.id,
             membership_type_id: membershipType.id,
             amount: membershipType.price,
@@ -442,11 +575,13 @@ export default function MembershipCheckoutPage() {
             payment_method: method === 'virtual_account' ? `${selectedBank} VA` : method === 'ewallet' ? selectedEwallet : method,
             external_id: (paymentResponse as any)?.id || `membership-${membershipType.id}-${existingUser.id}-${Date.now()}`,
             invoice_url: (paymentResponse as any)?.invoice_url || (paymentResponse as any)?.invoiceUrl || (paymentResponse as any)?.qrCodeUrl,
-            va_number: (paymentResponse as any)?.virtualAccount?.accountNumber
-          }])
-      } catch (dbError) {
-        console.error('Failed to create membership purchase record:', dbError)
-        // Continue anyway - the payment was created, just the tracking failed
+            va_number: (paymentResponse as any)?.virtualAccount?.accountNumber || null
+          })
+          if (!fallback.success) console.error('Server fallback also failed (after exception):', fallback.error)
+          else console.log('✅ Server created membership purchase after exception:', fallback.data)
+        } catch (e) {
+          console.error('Server fallback exception creating membership purchase:', e)
+        }
       }
 
     } catch (err) {
