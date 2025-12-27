@@ -219,8 +219,9 @@ export default function MembershipCheckoutPage() {
       return
     }
 
-    // Now process payment
+    // Now process payment - we have all required info
     console.log('Processing payment with method:', method, 'subMethod:', subMethod)
+    console.log('About to create payment and redirect...')
     setSelectedMethod(method)
     setProcessingPayment(true)
     setError(null)
@@ -261,6 +262,7 @@ export default function MembershipCheckoutPage() {
 
       if (method === 'credit_card') {
         // Create Xendit invoice for credit card
+        console.log('Creating invoice for credit card payment...')
         paymentResponse = await xendit.createInvoice({
           externalId: `membership-${membershipType.id}-${existingUser.id}-${Date.now()}`,
           amount: membershipType.price,
@@ -272,17 +274,46 @@ export default function MembershipCheckoutPage() {
           }
         })
 
+        console.log('Invoice response:', paymentResponse)
+
+        // Open payment URL immediately - redirect before setting state
+        const invoiceUrl = (paymentResponse as any)?.invoice_url || (paymentResponse as any)?.invoiceUrl
+        if (invoiceUrl) {
+          console.log('Opening invoice URL:', invoiceUrl)
+          console.log('About to redirect to:', invoiceUrl)
+          
+          // Try multiple redirect methods
+          try {
+            // Method 1: Direct redirect
+            window.location.href = invoiceUrl
+          } catch (e) {
+            console.log('Direct redirect failed, trying window.open')
+            try {
+              // Method 2: Window open with same window
+              window.open(invoiceUrl, '_self')
+            } catch (e2) {
+              console.log('Window open failed, trying assign')
+              // Method 3: Location assign
+              window.location.assign(invoiceUrl)
+            }
+          }
+          
+          // Fallback - force redirect after delay
+          setTimeout(() => {
+            window.location.href = invoiceUrl
+          }, 500)
+          
+          return // Stop execution here
+        } else {
+          console.error('No invoice URL found in response:', paymentResponse)
+        }
+
         setPaymentStatus({
           status: 'pending',
-          invoiceUrl: (paymentResponse as any)?.invoiceUrl,
+          invoiceUrl: (paymentResponse as any)?.invoice_url || (paymentResponse as any)?.invoiceUrl,
           paymentMethod: 'Credit Card',
           expiresAt: new Date(Date.now() + 2 * 60 * 60 * 1000) // 2 hours
         })
-
-        // Open payment URL in new tab
-        if (paymentResponse?.invoiceUrl) {
-          window.open(paymentResponse.invoiceUrl, '_blank')
-        }
 
       } else if (method === 'virtual_account') {
         // Create Virtual Account with selected bank
@@ -300,25 +331,64 @@ export default function MembershipCheckoutPage() {
           expiresAt: new Date(Date.now() + 2 * 60 * 60 * 1000)
         })
 
+        // For Virtual Account, we don't redirect to external URL
+        // User needs to see the VA number and make manual transfer
+
       } else if (method === 'ewallet') {
-        // Create E-Wallet charge with selected e-wallet
-        paymentResponse = await xendit.createEwalletCharge({
-          externalId: `membership-${membershipType.id}-${existingUser.id}-${Date.now()}`,
-          amount: membershipType.price,
-          phone: '',
-          ewalletType: subMethod as any
-        })
+        // Create E-Wallet invoice using dedicated API
+        const response = await fetch('/api/payment/create-ewallet-charge', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            membershipType,
+            userEmail: session.user.email,
+            userName: existingUser.name,
+            ewalletType: subMethod,
+            phone: ''
+          })
+        });
+
+        const data = await response.json();
+        
+        if (!response.ok) {
+          throw new Error(data.error || 'Failed to create e-wallet invoice');
+        }
+
+        console.log('E-wallet invoice response:', data);
+
+        // Redirect immediately to Xendit
+        if (data.invoiceUrl) {
+          console.log('Opening e-wallet invoice URL:', data.invoiceUrl);
+          console.log('About to redirect to:', data.invoiceUrl);
+          
+          // Try multiple redirect methods
+          try {
+            window.location.href = data.invoiceUrl
+          } catch (e) {
+            console.log('Direct redirect failed, trying window.open')
+            try {
+              window.open(data.invoiceUrl, '_self')
+            } catch (e2) {
+              console.log('Window open failed, trying assign')
+              window.location.assign(data.invoiceUrl)
+            }
+          }
+          
+          setTimeout(() => {
+            window.location.href = data.invoiceUrl
+          }, 500)
+          
+          return // Stop execution here
+        }
 
         setPaymentStatus({
           status: 'pending',
-          invoiceUrl: (paymentResponse as any)?.ewallet?.checkoutUrl,
+          invoiceUrl: data.invoiceUrl,
           paymentMethod: subMethod,
           expiresAt: new Date(Date.now() + 2 * 60 * 60 * 1000)
         })
-
-        if ((paymentResponse as any)?.ewallet?.checkoutUrl) {
-          window.open((paymentResponse as any).ewallet.checkoutUrl, '_blank')
-        }
       } else if (method === 'qris') {
         // Create QRIS payment
         paymentResponse = await xendit.createQRISCharge({
@@ -326,9 +396,35 @@ export default function MembershipCheckoutPage() {
           amount: membershipType.price
         })
 
+        // Redirect to QRIS payment page immediately
+        const qrCodeUrl = (paymentResponse as any)?.qrCodeUrl || (paymentResponse as any)?.qr_code_url
+        if (qrCodeUrl) {
+          console.log('Opening QRIS URL:', qrCodeUrl)
+          console.log('About to redirect to:', qrCodeUrl)
+          
+          // Try multiple redirect methods
+          try {
+            window.location.href = qrCodeUrl
+          } catch (e) {
+            console.log('Direct redirect failed, trying window.open')
+            try {
+              window.open(qrCodeUrl, '_self')
+            } catch (e2) {
+              console.log('Window open failed, trying assign')
+              window.location.assign(qrCodeUrl)
+            }
+          }
+          
+          setTimeout(() => {
+            window.location.href = qrCodeUrl
+          }, 500)
+          
+          return // Stop execution here
+        }
+
         setPaymentStatus({
           status: 'pending',
-          invoiceUrl: (paymentResponse as any)?.qrCodeUrl,
+          invoiceUrl: (paymentResponse as any)?.qrCodeUrl || (paymentResponse as any)?.qr_code_url,
           paymentMethod: 'QRIS',
           expiresAt: new Date(Date.now() + 2 * 60 * 60 * 1000)
         })
@@ -345,7 +441,7 @@ export default function MembershipCheckoutPage() {
             payment_status: 'pending',
             payment_method: method === 'virtual_account' ? `${selectedBank} VA` : method === 'ewallet' ? selectedEwallet : method,
             external_id: (paymentResponse as any)?.id || `membership-${membershipType.id}-${existingUser.id}-${Date.now()}`,
-            invoice_url: (paymentResponse as any)?.invoiceUrl,
+            invoice_url: (paymentResponse as any)?.invoice_url || (paymentResponse as any)?.invoiceUrl || (paymentResponse as any)?.qrCodeUrl,
             va_number: (paymentResponse as any)?.virtualAccount?.accountNumber
           }])
       } catch (dbError) {
@@ -737,7 +833,8 @@ export default function MembershipCheckoutPage() {
                           checked={selectedMethod === 'credit_card'}
                           onChange={() => {
                             setSelectedMethod('credit_card')
-                            handlePaymentMethod('credit_card')
+                            setShowCardForm(true)
+                            setExpandedAccordion('')
                           }}
                           disabled={processingPayment}
                           className="mr-3 w-4 h-4 text-blue-500"

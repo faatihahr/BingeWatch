@@ -7,7 +7,10 @@ const xenditClient = new Xendit({
 // Check if we have valid API keys (not placeholder)
 const hasValidKeys = process.env.XENDIT_SECRET_KEY && 
   !process.env.XENDIT_SECRET_KEY.includes('placeholder') &&
-  !process.env.XENDIT_SECRET_KEY.includes('YOUR_SECRET_KEY_HERE');
+  !process.env.XENDIT_SECRET_KEY.includes('YOUR_SECRET_KEY_HERE') &&
+  process.env.XENDIT_SECRET_KEY.startsWith('xnd_') &&
+  !process.env.XENDIT_SECRET_KEY.includes('YOUR_PRODUCTION_KEY_HERE') &&
+  process.env.XENDIT_SECRET_KEY.length > 50; // Ensure key is complete
 
 const { Invoice, PaymentMethod } = xenditClient;
 
@@ -37,12 +40,16 @@ export const xendit = {
       value: number;
     }>;
   }) {
+    console.log('Creating invoice with params:', params);
+    console.log('Has valid keys:', hasValidKeys);
+    console.log('API Key:', process.env.XENDIT_SECRET_KEY?.substring(0, 10) + '...');
+    
     if (!hasValidKeys) {
       // Mock response for development
-      console.log('Mock Xendit Invoice (Development Mode):', params);
+      console.log('Using MOCK response - this will NOT appear in Xendit dashboard');
       return {
         id: `mock_invoice_${Date.now()}`,
-        invoiceUrl: `https://mock-payment.xendit.co/invoice/${Date.now()}`,
+        invoice_url: `https://checkout.xendit.co/web/${Date.now()}`,
         status: 'PENDING',
         amount: params.amount,
         description: params.description,
@@ -51,6 +58,7 @@ export const xendit = {
     }
 
     try {
+      console.log('Using REAL Xendit API - this WILL appear in dashboard');
       const response = await Invoice.createInvoice({
         data: {
           amount: params.amount,
@@ -62,11 +70,12 @@ export const xendit = {
           customer: params.customer,
           items: params.items,
           fees: params.fees,
-          successRedirectUrl: `${process.env.NEXTAUTH_URL}/payment/success`,
-          failureRedirectUrl: `${process.env.NEXTAUTH_URL}/payment/failed`,
+          successRedirectUrl: `http://localhost:3000/payment/success`,
+          failureRedirectUrl: `http://localhost:3000/payment/failed`,
         },
       });
 
+      console.log('Xendit API response:', response);
       return response;
     } catch (error) {
       console.error('Error creating Xendit invoice:', error);
@@ -150,15 +159,31 @@ export const xendit = {
     callbackUrl?: string;
   }) {
     if (!hasValidKeys) {
-      // Mock response for development
+      // Mock response for development - simulate real Xendit e-wallet flow
       console.log('Mock Xendit E-Wallet (Development Mode):', params);
       return {
         id: `mock_ewallet_${Date.now()}`,
-        ewallet: {
-          checkoutUrl: `https://mock-payment.xendit.co/ewallet/${Date.now()}`,
-          channelCode: params.ewalletType,
-        },
+        business_id: 'mock_business_id',
+        reference_id: params.externalId,
         status: 'PENDING',
+        amount: params.amount,
+        checkout_url: `https://checkout.xendit.co/web/${Date.now()}`,
+        created: new Date().toISOString(),
+        updated: new Date().toISOString(),
+        payment_method: {
+          type: 'EWALLET',
+          properties: {
+            external_id: params.externalId,
+            channel_code: params.ewalletType,
+            success_return_url: `${process.env.NEXTAUTH_URL}/payment/success`,
+            failure_return_url: `${process.env.NEXTAUTH_URL}/payment/failed`,
+            cancel_return_url: `${process.env.NEXTAUTH_URL}/payment/failed`,
+          }
+        },
+        metadata: {
+          phone: params.phone,
+          amount: params.amount,
+        }
       };
     }
 

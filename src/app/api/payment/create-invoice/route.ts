@@ -37,7 +37,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      invoiceUrl: invoice.invoice_url,
+      invoiceUrl: (invoice as any).invoiceUrl || (invoice as any).invoice_url,
       invoiceId: invoice.id,
       externalId,
     });

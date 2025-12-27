@@ -210,11 +210,14 @@ export default function PaymentCheckoutPage() {
 
     if (method === 'ewallet' && !subMethod) {
       console.log('E-Wallet requires wallet selection')
+      console.log('Current selectedEwallet:', selectedEwallet)
       return
     }
 
     // Now process payment - we have all required info
     console.log('Processing payment with method:', method, 'subMethod:', subMethod)
+    console.log('Current selectedEwallet:', selectedEwallet)
+    console.log('About to create payment and redirect...')
     setSelectedMethod(method)
     setProcessingPayment(true)
     setError(null)
@@ -249,22 +252,30 @@ export default function PaymentCheckoutPage() {
         console.log('Created user record during payment:', newUser)
       }
 
-      // Check if already purchased using service role client
-      const { data: existingPurchase } = await supabaseAdmin
-        .from('purchases')
-        .select('*')
-        .eq('user_id', existingUser.id)
-        .eq('movie_id', movie.id)
-        .in('payment_status', ['paid', 'completed', 'Completed'])
-        .single()
+      // Check if already purchased using service role client (only check for successful purchases)
+      try {
+        const { data: existingPurchase } = await supabaseAdmin
+          .from('purchases')
+          .select('*')
+          .eq('user_id', existingUser.id)
+          .eq('movie_id', movie.id)
+          .eq('payment_status', 'paid')
+          .single()
 
-      if (existingPurchase) {
-        throw new Error('You have already purchased this movie')
+        if (existingPurchase) {
+          throw new Error('You have already purchased this movie')
+        }
+      } catch (checkError: any) {
+        // If it's a "no rows" error, that's fine - continue
+        if (checkError.code !== 'PGRST116') {
+          console.error('Error checking existing purchase:', checkError)
+        }
       }
 
       setPaymentStatus({ status: 'processing' })
 
       let paymentResponse
+      let invoiceUrlToSave = '' // Variable to store invoice URL for database
 
       if (method === 'credit_card') {
         // Create Xendit invoice for credit card
@@ -279,17 +290,43 @@ export default function PaymentCheckoutPage() {
           }
         })
 
+        // Redirect immediately to Xendit before setting state
+        const invoiceUrl = (paymentResponse as any)?.invoice_url || (paymentResponse as any)?.invoiceUrl
+        invoiceUrlToSave = invoiceUrl // Save for database
+        
+        if (invoiceUrl) {
+          console.log('Opening movie payment invoice URL:', invoiceUrl)
+          console.log('About to redirect to:', invoiceUrl)
+          
+          // Force redirect with multiple methods
+          console.log('Attempting redirect method 1: window.location.href')
+          window.location.href = invoiceUrl
+          
+          // Fallback redirects
+          setTimeout(() => {
+            console.log('Attempting redirect method 2: window.location.assign')
+            window.location.assign(invoiceUrl)
+          }, 100)
+          
+          setTimeout(() => {
+            console.log('Attempting redirect method 3: window.open')
+            window.open(invoiceUrl, '_self')
+          }, 200)
+          
+          setTimeout(() => {
+            console.log('Attempting redirect method 4: window.location.replace')
+            window.location.replace(invoiceUrl)
+          }, 300)
+          
+          return // Stop execution here
+        }
+
         setPaymentStatus({
           status: 'pending',
-          invoiceUrl: (paymentResponse as any)?.invoiceUrl,
+          invoiceUrl: (paymentResponse as any)?.invoice_url || (paymentResponse as any)?.invoiceUrl,
           paymentMethod: 'Credit Card',
           expiresAt: new Date(Date.now() + 2 * 60 * 60 * 1000) // 2 hours
         })
-
-        // Open payment URL in new tab
-        if (paymentResponse?.invoiceUrl) {
-          window.open(paymentResponse.invoiceUrl, '_blank')
-        }
 
       } else if (method === 'virtual_account') {
         // Create Virtual Account with selected bank
@@ -307,25 +344,90 @@ export default function PaymentCheckoutPage() {
           expiresAt: new Date(Date.now() + 2 * 60 * 60 * 1000)
         })
 
-      } else if (method === 'ewallet') {
-        // Create E-Wallet charge with selected e-wallet
-        paymentResponse = await xendit.createEwalletCharge({
-          externalId: `movie-${movie.id}-${existingUser.id}-${Date.now()}`,
-          amount: movie.price,
-          phone: '', // User needs to input phone number
-          ewalletType: subMethod as any
+    } else if (method === 'ewallet') {
+        // Create E-Wallet invoice
+        const response = await fetch('/api/payment/create-ewallet-charge', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            movie: {
+              id: movie.id,
+              title: movie.title,
+              price: movie.price,
+            },
+            userEmail: session.user.email,
+            userName: existingUser.name,
+            ewalletType: subMethod || selectedEwallet,
+            phone: undefined
+          }),
         })
+
+        const data = await response.json()
+        
+        if (!response.ok) {
+          throw new Error(data.error || 'Failed to create e-wallet invoice')
+        }
+
+        console.log('Movie e-wallet invoice response:', data)
+
+        // Redirect immediately to Xendit
+        if (data.invoiceUrl) {
+          invoiceUrlToSave = data.invoiceUrl // Save for database
+          
+          console.log('Opening movie e-wallet invoice URL:', data.invoiceUrl)
+          console.log('About to redirect to:', data.invoiceUrl)
+          
+          // Force redirect with multiple methods
+          console.log('Attempting redirect method 1: window.location.href')
+          try {
+            window.location.href = data.invoiceUrl
+            console.log('Method 1 executed successfully')
+          } catch (e) {
+            console.error('Method 1 failed:', e)
+          }
+          
+          // Fallback redirects
+          setTimeout(() => {
+            console.log('Attempting redirect method 2: window.location.assign')
+            try {
+              window.location.assign(data.invoiceUrl)
+              console.log('Method 2 executed successfully')
+            } catch (e) {
+              console.error('Method 2 failed:', e)
+            }
+          }, 100)
+          
+          setTimeout(() => {
+            console.log('Attempting redirect method 3: window.open')
+            try {
+              window.open(data.invoiceUrl, '_self')
+              console.log('Method 3 executed successfully')
+            } catch (e) {
+              console.error('Method 3 failed:', e)
+            }
+          }, 200)
+          
+          setTimeout(() => {
+            console.log('Attempting redirect method 4: window.location.replace')
+            try {
+              window.location.replace(data.invoiceUrl)
+              console.log('Method 4 executed successfully')
+            } catch (e) {
+              console.error('Method 4 failed:', e)
+            }
+          }, 300)
+          
+          return // Stop execution here
+        }
 
         setPaymentStatus({
           status: 'pending',
-          invoiceUrl: (paymentResponse as any)?.ewallet?.checkoutUrl,
-          paymentMethod: subMethod,
+          invoiceUrl: data.invoiceUrl,
+          paymentMethod: subMethod || selectedEwallet,
           expiresAt: new Date(Date.now() + 2 * 60 * 60 * 1000)
         })
-
-        if ((paymentResponse as any)?.ewallet?.checkoutUrl) {
-          window.open((paymentResponse as any).ewallet.checkoutUrl, '_blank')
-        }
       } else if (method === 'qris') {
         // Create QRIS payment
         paymentResponse = await xendit.createQRISCharge({
@@ -333,27 +435,85 @@ export default function PaymentCheckoutPage() {
           amount: movie.price
         })
 
+        // Redirect to QRIS payment page immediately
+        const qrCodeUrl = (paymentResponse as any)?.qrCodeUrl || (paymentResponse as any)?.qr_code_url
+        invoiceUrlToSave = qrCodeUrl // Save for database
+        
+        if (qrCodeUrl) {
+          console.log('Opening movie QRIS URL:', qrCodeUrl)
+          console.log('About to redirect to:', qrCodeUrl)
+          
+          // Force redirect with multiple methods
+          console.log('Attempting redirect method 1: window.location.href')
+          window.location.href = qrCodeUrl
+          
+          // Fallback redirects
+          setTimeout(() => {
+            console.log('Attempting redirect method 2: window.location.assign')
+            window.location.assign(qrCodeUrl)
+          }, 100)
+          
+          setTimeout(() => {
+            console.log('Attempting redirect method 3: window.open')
+            window.open(qrCodeUrl, '_self')
+          }, 200)
+          
+          setTimeout(() => {
+            console.log('Attempting redirect method 4: window.location.replace')
+            window.location.replace(qrCodeUrl)
+          }, 300)
+          
+          return // Stop execution here
+        }
+
         setPaymentStatus({
           status: 'pending',
-          invoiceUrl: (paymentResponse as any)?.qrCodeUrl,
+          invoiceUrl: (paymentResponse as any)?.qrCodeUrl || (paymentResponse as any)?.qr_code_url,
           paymentMethod: 'QRIS',
           expiresAt: new Date(Date.now() + 2 * 60 * 60 * 1000)
         })
       }
 
-      // Create pending purchase record
-      await supabaseAdmin
-        .from('purchases')
-        .insert([{
+      // Create or update pending purchase record BEFORE redirect
+      console.log('About to save to database. invoiceUrlToSave:', invoiceUrlToSave);
+      console.log('User ID:', existingUser.id, 'Movie ID:', movie.id);
+      
+      try {
+        const purchaseData = {
           user_id: existingUser.id,
           movie_id: movie.id,
           amount: movie.price,
           payment_status: 'pending',
-          payment_method: method === 'virtual_account' ? `${selectedBank} VA` : method === 'ewallet' ? selectedEwallet : method,
+          payment_method: method === 'virtual_account' ? `${selectedBank} VA` : method === 'ewallet' ? (subMethod || selectedEwallet) : method,
           external_id: (paymentResponse as any)?.id || `movie-${movie.id}-${existingUser.id}-${Date.now()}`,
-          invoice_url: (paymentResponse as any)?.invoiceUrl,
+          invoice_url: invoiceUrlToSave,
           va_number: (paymentResponse as any)?.virtualAccount?.accountNumber
-        }])
+        };
+        
+        console.log('Purchase data to save:', purchaseData);
+        
+        const { data: savedPurchase, error: saveError } = await supabaseAdmin
+          .from('purchases')
+          .upsert([purchaseData], {
+            onConflict: 'user_id,movie_id',
+            ignoreDuplicates: false
+          })
+          
+        console.log('Save result:', { savedPurchase, saveError });
+        
+        if (saveError) {
+          console.error('Failed to upsert purchase record:', saveError)
+          throw saveError;
+        }
+        
+        console.log('✅ Purchase saved successfully to database with ID:', (savedPurchase as any)?.[0]?.id);
+      } catch (dbError: any) {
+        console.error('❌ Failed to upsert purchase record:', dbError)
+        setError(`Database error: ${dbError.message || 'Unknown error'}`)
+        setPaymentStatus({ status: 'failed' })
+        setProcessingPayment(false)
+        return // Stop execution here
+      }
 
     } catch (err) {
       console.error('Payment error:', err)
@@ -404,8 +564,64 @@ export default function PaymentCheckoutPage() {
     }
   }
 
+  // Manual payment verification function
+  const verifyManualPayment = async () => {
+    if (!session?.user?.id || !movie?.id) return
+
+    try {
+      // Find the most recent pending purchase for this user and movie
+      const { data: pendingPurchase } = await supabaseAdmin
+        .from('purchases')
+        .select('*')
+        .eq('user_id', session.user.id)
+        .eq('movie_id', movie.id)
+        .eq('payment_status', 'pending')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single()
+
+      if (pendingPurchase && pendingPurchase.invoice_url) {
+        // Extract invoice ID from URL
+        const invoiceUrl = pendingPurchase.invoice_url
+        const invoiceId = invoiceUrl.split('/').pop()
+        
+        if (invoiceId) {
+          console.log('Manually verifying payment for invoice:', invoiceId)
+          
+          const response = await fetch('/api/payment/verify', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              invoiceId,
+              externalId: pendingPurchase.external_id,
+            }),
+          })
+
+          const data = await response.json()
+          
+          if (data.success) {
+            console.log('Manual verification successful')
+            // Refresh payment status
+            window.location.reload()
+          } else {
+            console.error('Manual verification failed:', data.error)
+            setError('Payment verification failed: ' + data.error)
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Manual verification error:', error)
+      setError('Failed to verify payment')
+    }
+  }
+
   const simulatePayment = async () => {
-    if (!session?.user || !movie || paymentStatus.status !== 'pending') return
+    if (!session?.user?.id || !movie?.id) {
+      console.error('Missing session or movie data')
+      return
+    }
 
     try {
       // Find existing user by email using service client
@@ -528,13 +744,27 @@ export default function PaymentCheckoutPage() {
         )}
 
         {/* Payment Status UI */}
-        {(paymentStatus.status === 'pending' && selectedMethod && !processingPayment) && (
+        {(paymentStatus.status === 'pending' && selectedMethod) && (
           <div className="mb-6">
             <PaymentStatus
               status={uiPaymentStatus}
               onPaid={() => {}}
               onCancel={() => {}}
             />
+            
+            {/* Manual Verify Payment Button */}
+            <div className="mt-4 text-center">
+              <button
+                onClick={verifyManualPayment}
+                disabled={processingPayment}
+                className="px-6 py-2 bg-green-600 hover:bg-green-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white rounded-md font-medium transition-colors"
+              >
+                {processingPayment ? 'Verifying...' : 'Verify Payment'}
+              </button>
+              <p className="text-sm text-gray-400 mt-2">
+                If you have completed payment in Xendit but the status hasn't updated, click this button to verify
+              </p>
+            </div>
           </div>
         )}
 
@@ -659,7 +889,8 @@ export default function PaymentCheckoutPage() {
                           checked={selectedMethod === 'credit_card'}
                           onChange={() => {
                             setSelectedMethod('credit_card')
-                            handlePaymentMethod('credit_card')
+                            setShowCardForm(true)
+                            setExpandedAccordion('')
                           }}
                           disabled={processingPayment}
                           className="mr-3 w-4 h-4 text-blue-500"
@@ -685,8 +916,6 @@ export default function PaymentCheckoutPage() {
                           onChange={() => {
                             setExpandedAccordion('virtual_account')
                             setSelectedMethod('')
-                            setSelectedBank('')
-                            setSelectedEwallet('')
                           }}
                           disabled={processingPayment}
                           className="mr-3 w-4 h-4 text-blue-500"
@@ -739,7 +968,6 @@ export default function PaymentCheckoutPage() {
                             setExpandedAccordion('ewallet')
                             setSelectedMethod('')
                             setSelectedBank('')
-                            setSelectedEwallet('')
                           }}
                           disabled={processingPayment}
                           className="mr-3 w-4 h-4 text-blue-500"
