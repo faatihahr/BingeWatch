@@ -7,6 +7,9 @@ import { FiCheckCircle, FiLoader } from 'react-icons/fi'
 export default function PaymentSuccessPage() {
   const [isVerifying, setIsVerifying] = useState(true)
   const [paymentDetails, setPaymentDetails] = useState<any>(null)
+  const [showManualVerify, setShowManualVerify] = useState(false)
+  const [manualInvoiceId, setManualInvoiceId] = useState<string>('')
+  const [manualExternalId, setManualExternalId] = useState<string>('')
   const searchParams = useSearchParams()
   const router = useRouter()
 
@@ -27,6 +30,10 @@ export default function PaymentSuccessPage() {
     }
     
     console.log('Final extracted - invoiceId:', invoiceId, 'externalId:', externalId);
+
+    // Prefill manual inputs so user can quickly tap Verify
+    if (invoiceId) setManualInvoiceId(invoiceId)
+    if (externalId) setManualExternalId(externalId)
 
     // For now, if we can't get params, just show success
     // and let user know payment was processed
@@ -123,6 +130,56 @@ export default function PaymentSuccessPage() {
           >
             Print Receipt
           </button>
+
+          {/* Manual Verify Button */}
+          <button
+            onClick={() => setShowManualVerify(v => !v)}
+            className="w-full mt-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-md transition-colors"
+          >
+            {showManualVerify ? 'Close Verify' : 'Verify Payment'}
+          </button>
+          {showManualVerify && (
+            <div className="mt-3 text-left bg-gray-800 p-4 rounded">
+              <label className="text-sm text-gray-300">Invoice ID</label>
+              <input
+                value={manualInvoiceId}
+                onChange={e => setManualInvoiceId(e.target.value)}
+                placeholder="invoice id or last segment of invoice url"
+                className="w-full mt-1 mb-2 p-2 rounded bg-gray-900 border border-gray-700 text-white"
+              />
+
+              <label className="text-sm text-gray-300">External ID (optional)</label>
+              <input
+                value={manualExternalId}
+                onChange={e => setManualExternalId(e.target.value)}
+                placeholder="external id (if available)"
+                className="w-full mt-1 mb-3 p-2 rounded bg-gray-900 border border-gray-700 text-white"
+              />
+
+              <div className="flex gap-2">
+                <button
+                  onClick={async () => {
+                    if (!manualInvoiceId) {
+                      setPaymentDetails({ status: 'FAILED', message: 'Invoice ID is required' })
+                      return
+                    }
+                    setIsVerifying(true)
+                    await verifyPayment(manualInvoiceId, manualExternalId)
+                    setIsVerifying(false)
+                  }}
+                  className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md"
+                >
+                  Verify
+                </button>
+                <button
+                  onClick={() => setShowManualVerify(false)}
+                  className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-md"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>

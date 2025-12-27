@@ -276,6 +276,7 @@ export default function PaymentCheckoutPage() {
 
       let paymentResponse
       let invoiceUrlToSave = '' // Variable to store invoice URL for database
+      let purchaseSaved = false
 
       if (method === 'credit_card') {
         // Create Xendit invoice for credit card
@@ -295,29 +296,56 @@ export default function PaymentCheckoutPage() {
         invoiceUrlToSave = invoiceUrl // Save for database
         
         if (invoiceUrl) {
+          // Save pending purchase record BEFORE redirecting to Xendit
+          try {
+            const purchaseData = {
+              user_id: existingUser.id,
+              movie_id: movie.id,
+              amount: movie.price,
+              payment_status: 'pending',
+              payment_method: 'credit_card',
+              external_id: (paymentResponse as any)?.externalId || (paymentResponse as any)?.invoiceId || (paymentResponse as any)?.id || `movie-${movie.id}-${existingUser.id}-${Date.now()}`,
+              invoice_url: invoiceUrl,
+              va_number: (paymentResponse as any)?.virtualAccount?.accountNumber || null
+            }
+
+            const { data: savedPurchase, error: saveError } = await supabaseAdmin
+              .from('purchases')
+              .upsert([purchaseData], { onConflict: 'user_id,movie_id', ignoreDuplicates: false })
+
+            if (saveError) {
+              console.error('Failed to upsert purchase record before redirect (credit_card):', saveError)
+            } else {
+              console.log('✅ Purchase saved successfully before redirect (credit_card):', savedPurchase)
+              purchaseSaved = true
+            }
+          } catch (dbErr) {
+            console.error('Error saving purchase before redirect (credit_card):', dbErr)
+          }
+
           console.log('Opening movie payment invoice URL:', invoiceUrl)
           console.log('About to redirect to:', invoiceUrl)
-          
+
           // Force redirect with multiple methods
           console.log('Attempting redirect method 1: window.location.href')
           window.location.href = invoiceUrl
-          
+
           // Fallback redirects
           setTimeout(() => {
             console.log('Attempting redirect method 2: window.location.assign')
             window.location.assign(invoiceUrl)
           }, 100)
-          
+
           setTimeout(() => {
             console.log('Attempting redirect method 3: window.open')
             window.open(invoiceUrl, '_self')
           }, 200)
-          
+
           setTimeout(() => {
             console.log('Attempting redirect method 4: window.location.replace')
             window.location.replace(invoiceUrl)
           }, 300)
-          
+
           return // Stop execution here
         }
 
@@ -370,15 +398,45 @@ export default function PaymentCheckoutPage() {
           throw new Error(data.error || 'Failed to create e-wallet invoice')
         }
 
+        // Ensure we keep the payment response so we save the same externalId/invoiceId
+        paymentResponse = data
+
         console.log('Movie e-wallet invoice response:', data)
 
         // Redirect immediately to Xendit
         if (data.invoiceUrl) {
           invoiceUrlToSave = data.invoiceUrl // Save for database
-          
+
+          // Save pending purchase record BEFORE redirecting to Xendit
+          try {
+            const purchaseData = {
+              user_id: existingUser.id,
+              movie_id: movie.id,
+              amount: movie.price,
+              payment_status: 'pending',
+              payment_method: subMethod || selectedEwallet,
+              external_id: (paymentResponse as any)?.externalId || (paymentResponse as any)?.invoiceId || (paymentResponse as any)?.id || `movie-${movie.id}-${existingUser.id}-${Date.now()}`,
+              invoice_url: data.invoiceUrl,
+              va_number: (paymentResponse as any)?.virtualAccount?.accountNumber || null
+            }
+
+            const { data: savedPurchase, error: saveError } = await supabaseAdmin
+              .from('purchases')
+              .upsert([purchaseData], { onConflict: 'user_id,movie_id', ignoreDuplicates: false })
+
+            if (saveError) {
+              console.error('Failed to upsert purchase record before redirect (ewallet):', saveError)
+            } else {
+              console.log('✅ Purchase saved successfully before redirect (ewallet):', savedPurchase)
+              purchaseSaved = true
+            }
+          } catch (dbErr) {
+            console.error('Error saving purchase before redirect (ewallet):', dbErr)
+          }
+
           console.log('Opening movie e-wallet invoice URL:', data.invoiceUrl)
           console.log('About to redirect to:', data.invoiceUrl)
-          
+
           // Force redirect with multiple methods
           console.log('Attempting redirect method 1: window.location.href')
           try {
@@ -387,7 +445,7 @@ export default function PaymentCheckoutPage() {
           } catch (e) {
             console.error('Method 1 failed:', e)
           }
-          
+
           // Fallback redirects
           setTimeout(() => {
             console.log('Attempting redirect method 2: window.location.assign')
@@ -398,7 +456,7 @@ export default function PaymentCheckoutPage() {
               console.error('Method 2 failed:', e)
             }
           }, 100)
-          
+
           setTimeout(() => {
             console.log('Attempting redirect method 3: window.open')
             try {
@@ -408,7 +466,7 @@ export default function PaymentCheckoutPage() {
               console.error('Method 3 failed:', e)
             }
           }, 200)
-          
+
           setTimeout(() => {
             console.log('Attempting redirect method 4: window.location.replace')
             try {
@@ -418,7 +476,7 @@ export default function PaymentCheckoutPage() {
               console.error('Method 4 failed:', e)
             }
           }, 300)
-          
+
           return // Stop execution here
         }
 
@@ -440,29 +498,56 @@ export default function PaymentCheckoutPage() {
         invoiceUrlToSave = qrCodeUrl // Save for database
         
         if (qrCodeUrl) {
+          // Save pending purchase record BEFORE redirecting to QRIS
+          try {
+            const purchaseData = {
+              user_id: existingUser.id,
+              movie_id: movie.id,
+              amount: movie.price,
+              payment_status: 'pending',
+              payment_method: 'QRIS',
+              external_id: (paymentResponse as any)?.externalId || (paymentResponse as any)?.invoiceId || (paymentResponse as any)?.id || `movie-${movie.id}-${existingUser.id}-${Date.now()}`,
+              invoice_url: qrCodeUrl,
+              va_number: (paymentResponse as any)?.virtualAccount?.accountNumber || null
+            }
+
+            const { data: savedPurchase, error: saveError } = await supabaseAdmin
+              .from('purchases')
+              .upsert([purchaseData], { onConflict: 'user_id,movie_id', ignoreDuplicates: false })
+
+            if (saveError) {
+              console.error('Failed to upsert purchase record before redirect (QRIS):', saveError)
+            } else {
+              console.log('✅ Purchase saved successfully before redirect (QRIS):', savedPurchase)
+              purchaseSaved = true
+            }
+          } catch (dbErr) {
+            console.error('Error saving purchase before redirect (QRIS):', dbErr)
+          }
+
           console.log('Opening movie QRIS URL:', qrCodeUrl)
           console.log('About to redirect to:', qrCodeUrl)
-          
+
           // Force redirect with multiple methods
           console.log('Attempting redirect method 1: window.location.href')
           window.location.href = qrCodeUrl
-          
+
           // Fallback redirects
           setTimeout(() => {
             console.log('Attempting redirect method 2: window.location.assign')
             window.location.assign(qrCodeUrl)
           }, 100)
-          
+
           setTimeout(() => {
             console.log('Attempting redirect method 3: window.open')
             window.open(qrCodeUrl, '_self')
           }, 200)
-          
+
           setTimeout(() => {
             console.log('Attempting redirect method 4: window.location.replace')
             window.location.replace(qrCodeUrl)
           }, 300)
-          
+
           return // Stop execution here
         }
 
@@ -479,13 +564,14 @@ export default function PaymentCheckoutPage() {
       console.log('User ID:', existingUser.id, 'Movie ID:', movie.id);
       
       try {
+        if (!purchaseSaved) {
         const purchaseData = {
           user_id: existingUser.id,
           movie_id: movie.id,
           amount: movie.price,
           payment_status: 'pending',
           payment_method: method === 'virtual_account' ? `${selectedBank} VA` : method === 'ewallet' ? (subMethod || selectedEwallet) : method,
-          external_id: (paymentResponse as any)?.id || `movie-${movie.id}-${existingUser.id}-${Date.now()}`,
+          external_id: (paymentResponse as any)?.externalId || (paymentResponse as any)?.invoiceId || (paymentResponse as any)?.id || `movie-${movie.id}-${existingUser.id}-${Date.now()}`,
           invoice_url: invoiceUrlToSave,
           va_number: (paymentResponse as any)?.virtualAccount?.accountNumber
         };
@@ -507,6 +593,7 @@ export default function PaymentCheckoutPage() {
         }
         
         console.log('✅ Purchase saved successfully to database with ID:', (savedPurchase as any)?.[0]?.id);
+        }
       } catch (dbError: any) {
         console.error('❌ Failed to upsert purchase record:', dbError)
         setError(`Database error: ${dbError.message || 'Unknown error'}`)
